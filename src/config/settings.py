@@ -15,7 +15,8 @@ class VisualizerSettings:
     source_index: int | None = None        # sounddevice device index; None = ask
     # Active visuals
     preset: str = "spectrum"
-    palette: str = "Spectrum"
+    ui_theme: str = "original"             # drives the Qt interface stylesheet
+    graphics_palette: str = "original"     # drives the shader colors (independent)
     # Analysis
     smoothing: float = 0.8                  # 0 = jittery, 1 = frozen
     sensitivity: float = 1.0                # input gain multiplier
