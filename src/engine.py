@@ -13,10 +13,12 @@ import moderngl
 from src.audio.analyzer import AudioData
 from src.config.settings import VisualizerSettings
 from src.config.theme import Palette
+from src.postprocess import PostProcess
 from src.presets.base import Preset
 from src.presets.spectrum import Spectrum
 
 _LUT_SIZE = 256
+_LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
 def _build_presets(ctx: moderngl.Context) -> dict[str, Preset]:
@@ -36,6 +38,7 @@ class VisualizerEngine:
         self.settings = settings
 
         self._build_targets()
+        self.post = PostProcess(ctx, (self.width, self.height))
 
         self.palette_lut = ctx.texture((_LUT_SIZE, 1), 3, dtype="f4")
         self.palette_lut.filter = (moderngl.LINEAR, moderngl.LINEAR)
@@ -46,6 +49,11 @@ class VisualizerEngine:
         self.active = self.presets.get(settings.preset) or next(iter(self.presets.values()))
 
     def _build_targets(self) -> None:
+        # Scene is HDR (f2) so bright ink blooms; output is u8 (f1) for display.
+        self.scene_texture = self.ctx.texture((self.width, self.height), 4, dtype="f2")
+        self.scene_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        self.scene_fbo = self.ctx.framebuffer(color_attachments=[self.scene_texture])
+
         self.output_texture = self.ctx.texture((self.width, self.height), 4, dtype="f1")
         self.output_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
         self.output_fbo = self.ctx.framebuffer(color_attachments=[self.output_texture])
@@ -67,22 +75,33 @@ class VisualizerEngine:
         if (width, height) == (self.width, self.height) or width <= 0 or height <= 0:
             return
         self.width, self.height = width, height
-        self.output_fbo.release()
-        self.output_texture.release()
+        for obj in (self.scene_fbo, self.scene_texture,
+                    self.output_fbo, self.output_texture):
+            obj.release()
         self._build_targets()
+        self.post.resize((width, height))
 
     # ── per-frame render ────────────────────────────────────────────────────────
     def render(self, audio: AudioData | None) -> None:
-        self.output_fbo.use()
-        self.ctx.viewport = (0, 0, self.width, self.height)
         bg = self.palette.background
+
+        # 1) Scene pass → HDR scene texture
+        self.scene_fbo.use()
+        self.ctx.viewport = (0, 0, self.width, self.height)
         self.ctx.clear(bg[0], bg[1], bg[2], 1.0)
         if audio is not None:
             self.active.render(audio, self.settings, self.palette_lut, bg)
 
+        # 2) Bloom + composite → output texture
+        bg_lum = float(np.array(bg, dtype=np.float32) @ _LUMA)
+        self.post.run(self.scene_texture, self.output_fbo,
+                      float(self.settings.bloom) * 1.6, bg_lum)
+
     def release(self) -> None:
         for preset in self.presets.values():
             preset.release()
+        self.post.release()
         self.palette_lut.release()
-        self.output_fbo.release()
-        self.output_texture.release()
+        for obj in (self.scene_fbo, self.scene_texture,
+                    self.output_fbo, self.output_texture):
+            obj.release()

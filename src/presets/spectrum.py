@@ -85,7 +85,7 @@ class Spectrum(Preset):
         self.prog["palette"] = 0
         self.prog["bars"] = 1
         self.prog["bg"] = tuple(background)
-        self.prog["glow"] = float(settings.bloom)
+        self.prog["glow"] = 0.25      # soft bar tops; global bloom adds the halo
         self.vao.render(moderngl.TRIANGLES)
 
     def release(self) -> None:
