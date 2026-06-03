@@ -30,6 +30,7 @@ class Controller(QObject):
         self.palette: Palette = registry.get_palette(settings.graphics_palette)
         self.palette_version = 0
         self.latest_audio: AudioData | None = None
+        self.audio_error: str | None = None
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -42,19 +43,32 @@ class Controller(QObject):
 
     # ── capture lifecycle ──────────────────────────────────────────────────────
     def _open_capture(self, device_index: int) -> None:
-        self.capture = AudioCapture(device=device_index)
-        self.analyzer = AudioAnalyzer(sample_rate=self.capture.sample_rate)
-        self.settings.source_index = device_index
+        try:
+            self.capture = AudioCapture(device=device_index)
+            self.analyzer = AudioAnalyzer(sample_rate=self.capture.sample_rate)
+            self.settings.source_index = device_index
+            self.audio_error = None
+        except Exception as e:  # noqa: BLE001 — surface device errors, don't crash
+            self.capture = None
+            self.analyzer = None
+            self.audio_error = f"open failed: {e}"
 
     def set_source(self, device_index: int) -> None:
         if self.capture:
             self.capture.stop()
         self._open_capture(device_index)
-        self.capture.start()
+        if self.capture:
+            try:
+                self.capture.start()
+            except Exception as e:  # noqa: BLE001
+                self.audio_error = f"start failed: {e}"
 
     def start(self) -> None:
         if self.capture:
-            self.capture.start()
+            try:
+                self.capture.start()
+            except Exception as e:  # noqa: BLE001 — keep the GUI alive on audio failure
+                self.audio_error = f"start failed: {e}"
         self.timer.start(max(1, int(1000 / self.settings.fps)))
 
     def stop(self) -> None:

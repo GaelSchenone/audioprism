@@ -7,11 +7,23 @@ preset, settings) from the controller every frame.
 
 from __future__ import annotations
 
+import datetime
+import traceback
+
 import moderngl
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from src.engine import VisualizerEngine
 from src.presets.base import fullscreen_vao
+
+_CRASH_LOG = "/tmp/audioprism_crash.log"
+
+
+def _log_gl_error(where: str, exc: Exception) -> None:
+    with open(_CRASH_LOG, "a") as f:
+        f.write(f"\n=== {datetime.datetime.now()} GL error in {where} ===\n")
+        traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
 
 _BLIT_VERT = """
 #version 330
@@ -39,31 +51,43 @@ class GLViewport(QOpenGLWidget):
         self.ctx: moderngl.Context | None = None
         self.engine: VisualizerEngine | None = None
         self._seen_palette = -1
+        self._failed = False
 
     def _device_size(self) -> tuple[int, int]:
         dpr = self.devicePixelRatio()
         return max(2, int(self.width() * dpr)), max(2, int(self.height() * dpr))
 
     def initializeGL(self) -> None:
-        self.ctx = moderngl.create_context()
-        self.engine = VisualizerEngine(
-            self.ctx,
-            self._device_size(),
-            self.controller.palette,
-            self.controller.settings,
-        )
-        self.engine.set_preset(self.controller.settings.preset)
-        self._seen_palette = self.controller.palette_version
-        self.blit_prog = self.ctx.program(vertex_shader=_BLIT_VERT, fragment_shader=_BLIT_FRAG)
-        self.blit_vao = fullscreen_vao(self.ctx, self.blit_prog)
+        try:
+            self.ctx = moderngl.create_context()
+            self.engine = VisualizerEngine(
+                self.ctx,
+                self._device_size(),
+                self.controller.palette,
+                self.controller.settings,
+            )
+            self.engine.set_preset(self.controller.settings.preset)
+            self._seen_palette = self.controller.palette_version
+            self.blit_prog = self.ctx.program(vertex_shader=_BLIT_VERT, fragment_shader=_BLIT_FRAG)
+            self.blit_vao = fullscreen_vao(self.ctx, self.blit_prog)
+        except Exception as e:  # noqa: BLE001
+            self._failed = True
+            _log_gl_error("initializeGL", e)
 
     def resizeGL(self, w: int, h: int) -> None:
         if self.engine:
             self.engine.resize(max(2, w), max(2, h))
 
     def paintGL(self) -> None:
-        if self.engine is None:
+        if self.engine is None or self._failed:
             return
+        try:
+            self._paint()
+        except Exception as e:  # noqa: BLE001 — log once, keep the window alive
+            self._failed = True
+            _log_gl_error("paintGL", e)
+
+    def _paint(self) -> None:
         # Sync config pulled from the controller
         if self._seen_palette != self.controller.palette_version:
             self.engine.set_palette(self.controller.palette)

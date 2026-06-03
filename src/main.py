@@ -5,8 +5,22 @@ from __future__ import annotations
 import sys
 import time
 import argparse
+import datetime
+import traceback
 
 import sounddevice as sd
+
+CRASH_LOG = "/tmp/audioprism_crash.log"
+
+
+def _install_crash_logger() -> None:
+    """Write any uncaught exception's traceback to a file (and stderr)."""
+    def hook(exc_type, exc, tb) -> None:
+        with open(CRASH_LOG, "a") as f:
+            f.write(f"\n=== {datetime.datetime.now()} ===\n")
+            traceback.print_exception(exc_type, exc, tb, file=f)
+        traceback.print_exception(exc_type, exc, tb)
+    sys.excepthook = hook
 
 from src.audio.pipewire import list_sources, AudioSource
 from src.audio.capture import AudioCapture
@@ -109,6 +123,7 @@ def main() -> None:
         _list_devices()
         return
 
+    _install_crash_logger()
     settings = VisualizerSettings.load()
 
     if args.tui:

@@ -64,6 +64,11 @@ class MainWindow(QMainWindow):
         self._fullscreen = None
 
     def _update_status(self) -> None:
+        if self.controller.audio_error:
+            self.statusBar().showMessage(
+                f"⚠ audio {self.controller.audio_error} — pick another Source"
+            )
+            return
         a = self.controller.latest_audio
         if a is None:
             self.statusBar().showMessage("waiting for audio…")
