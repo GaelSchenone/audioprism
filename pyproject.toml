@@ -13,6 +13,7 @@ dependencies = [
     "moderngl>=5.10",
     "opencv-python>=4.9",
     "pyrr>=0.10",
+    "Pillow>=10.0",
 ]
 
 [project.scripts]

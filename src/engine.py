@@ -14,6 +14,7 @@ from src.audio.analyzer import AudioData
 from src.config.settings import VisualizerSettings
 from src.config.theme import Palette
 from src.postprocess import PostProcess
+from src.presets.ascii_bars import AsciiBars
 from src.presets.base import Preset
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
@@ -26,7 +27,7 @@ _LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
 PRESET_CLASSES: tuple[type[Preset], ...] = (
-    Spectrum, Waveform, Particles, Radial, Matrix,
+    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 
