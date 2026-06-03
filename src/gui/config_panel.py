@@ -65,7 +65,8 @@ class ConfigPanel(QWidget):
 
         vis_lay.addWidget(QLabel("Preset"))
         self.preset_combo = QComboBox()
-        self.preset_combo.addItems(_preset_names())
+        from src.engine import PRESET_NAMES
+        self.preset_combo.addItems(PRESET_NAMES)
         self.preset_combo.setCurrentText(settings.preset)
         self.preset_combo.currentTextChanged.connect(controller.set_preset)
         vis_lay.addWidget(self.preset_combo)
@@ -118,9 +119,3 @@ class ConfigPanel(QWidget):
 
     def _on_bloom(self) -> None:
         self.controller.settings.bloom = _slider_value(self.bloom)
-
-
-def _preset_names() -> list[str]:
-    """Preset names without needing a GL context (mirrors engine registry)."""
-    from src.presets.spectrum import Spectrum
-    return [Spectrum.name]
