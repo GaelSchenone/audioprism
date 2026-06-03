@@ -15,6 +15,7 @@ from src.config.settings import VisualizerSettings
 from src.config.theme import Palette
 from src.postprocess import PostProcess
 from src.presets.base import Preset
+from src.presets.matrix import Matrix
 from src.presets.particles import Particles
 from src.presets.radial import Radial
 from src.presets.spectrum import Spectrum
@@ -24,7 +25,9 @@ _LUT_SIZE = 256
 _LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
-PRESET_CLASSES: tuple[type[Preset], ...] = (Spectrum, Waveform, Particles, Radial)
+PRESET_CLASSES: tuple[type[Preset], ...] = (
+    Spectrum, Waveform, Particles, Radial, Matrix,
+)
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 
 
