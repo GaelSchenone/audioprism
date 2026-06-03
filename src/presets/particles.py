@@ -1,0 +1,138 @@
+"""Particles preset: audio-reactive GPU point cloud with a deterministic CPU sim.
+
+The simulation runs on the CPU with a fixed-seed RNG so every engine instance
+(editor preview and fullscreen window) produces an identical cloud from the same
+audio stream. Bass drives emission and outward speed; beats trigger bursts.
+Particles are drawn as additive soft points, colored from the palette by age.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import moderngl
+
+from src.audio.analyzer import AudioData
+from src.config.settings import VisualizerSettings
+from src.presets.base import Preset
+
+_VERT = """
+#version 330
+in vec2 in_pos;
+in float in_life;
+out float v_life;
+uniform float aspect;
+uniform float point_scale;
+void main() {
+    vec2 p = in_pos;
+    if (aspect > 1.0) p.x /= aspect; else p.y *= aspect;   // keep bursts circular
+    v_life = in_life;
+    gl_Position = vec4(p, 0.0, 1.0);
+    gl_PointSize = point_scale * (0.4 + clamp(in_life, 0.0, 1.0));
+}
+"""
+
+_FRAG = """
+#version 330
+in float v_life;
+out vec4 frag;
+uniform sampler2D palette;
+void main() {
+    float r = length(gl_PointCoord - vec2(0.5));
+    if (r > 0.5) discard;
+    float a = smoothstep(0.5, 0.0, r);
+    vec3 col = texture(palette, vec2(clamp(1.0 - v_life, 0.0, 1.0), 0.5)).rgb;
+    frag = vec4(col * a, a);
+}
+"""
+
+_DT = 1.0 / 60.0
+_DRAG = 0.985
+_LIFE_DECAY = 0.8
+_SWIRL = 0.6
+
+
+class Particles(Preset):
+    name = "particles"
+
+    def __init__(self, ctx: moderngl.Context) -> None:
+        super().__init__(ctx)
+        self.n = 20000
+        self.prog = ctx.program(vertex_shader=_VERT, fragment_shader=_FRAG)
+        self.vbo = ctx.buffer(reserve=self.n * 3 * 4)        # pos(2f) + life(1f)
+        self.vao = ctx.vertex_array(
+            self.prog, [(self.vbo, "2f 1f", "in_pos", "in_life")]
+        )
+
+        self.rng = np.random.default_rng(1234)               # deterministic
+        self.pos = np.zeros((self.n, 2), dtype="f4")
+        self.vel = np.zeros((self.n, 2), dtype="f4")
+        self.life = np.zeros(self.n, dtype="f4")             # all dead initially
+        self._interleaved = np.zeros((self.n, 3), dtype="f4")
+
+    def _emit(self, count: int, bass: float, beat: bool) -> None:
+        if count <= 0:
+            return
+        dead = np.where(self.life <= 0.0)[0]
+        if len(dead) == 0:
+            return
+        k = min(count, len(dead))
+        idx = dead[:k]
+        angle = self.rng.uniform(0.0, 2.0 * np.pi, k).astype("f4")
+        speed = (0.35 + bass * 1.8 + (0.9 if beat else 0.0)) * self.rng.uniform(0.5, 1.0, k)
+        self.pos[idx] = self.rng.normal(0.0, 0.02, (k, 2)).astype("f4")
+        self.vel[idx, 0] = np.cos(angle) * speed
+        self.vel[idx, 1] = np.sin(angle) * speed
+        self.life[idx] = 1.0
+
+    def _step(self, audio: AudioData) -> None:
+        bass = float(audio.bands.get("bass", 0.0))
+        beat = bool(audio.beat)
+
+        n_emit = int(self.n * 0.008 + bass * self.n * 0.03)
+        if beat:
+            n_emit += int(self.n * 0.12)
+        self._emit(n_emit, bass, beat)
+
+        alive = self.life > 0.0
+        # Swirl: rotate velocities slightly for visual motion
+        ang = _SWIRL * _DT
+        cos_a, sin_a = np.cos(ang), np.sin(ang)
+        vx, vy = self.vel[alive, 0].copy(), self.vel[alive, 1].copy()
+        self.vel[alive, 0] = vx * cos_a - vy * sin_a
+        self.vel[alive, 1] = vx * sin_a + vy * cos_a
+
+        self.pos[alive] += self.vel[alive] * _DT
+        self.vel[alive] *= _DRAG
+        self.life[alive] -= _DT * _LIFE_DECAY
+
+    def render(
+        self,
+        audio: AudioData,
+        settings: VisualizerSettings,
+        palette_lut: moderngl.Texture,
+        background: tuple[float, float, float],
+    ) -> None:
+        self._step(audio)
+
+        self._interleaved[:, :2] = self.pos
+        self._interleaved[:, 2] = np.clip(self.life, 0.0, 1.0)
+        self.vbo.write(np.ascontiguousarray(self._interleaved).tobytes())
+
+        _, _, w, h = self.ctx.viewport
+        self.ctx.enable(moderngl.PROGRAM_POINT_SIZE)
+        self.ctx.enable(moderngl.BLEND)
+        self.ctx.blend_func = (moderngl.SRC_ALPHA, moderngl.ONE)   # additive
+
+        palette_lut.use(0)
+        self.prog["palette"] = 0
+        self.prog["aspect"] = (w / h) if h else 1.0
+        self.prog["point_scale"] = max(2.0, h * 0.010)
+        self.vao.render(mode=moderngl.POINTS, vertices=self.n)
+
+        # Restore default blending so the bloom passes composite correctly
+        self.ctx.disable(moderngl.BLEND)
+
+    def release(self) -> None:
+        self.vbo.release()
+        self.vao.release()
+        self.prog.release()
