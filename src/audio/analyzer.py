@@ -8,6 +8,9 @@ SAMPLE_RATE = 44100
 FFT_SIZE = 2048
 SMOOTHING = 0.8
 BEAT_THRESHOLD = 1.5
+# Refractory period between beats — caps detection at ~300 BPM and stops the
+# detector from firing on near-every frame during sustained loud passages.
+MIN_BEAT_INTERVAL = 0.20
 # ~1 s of energy history at 44100 / 1024 fps
 BEAT_HISTORY_LEN = 43
 
@@ -37,6 +40,7 @@ class AudioAnalyzer:
         self._smoothed = np.zeros(FFT_SIZE // 2 + 1, dtype=np.float32)
         self._energy_history = np.zeros(BEAT_HISTORY_LEN, dtype=np.float64)
         self._beat_times: list[float] = []
+        self._last_beat_time: float = 0.0
         self._bpm: float = 0.0
         self.frequencies = np.fft.rfftfreq(FFT_SIZE, 1.0 / sample_rate).astype(np.float32)
         self._window = np.hanning(FFT_SIZE).astype(np.float32)
@@ -66,16 +70,22 @@ class AudioAnalyzer:
             mask = (self.frequencies >= lo) & (self.frequencies <= hi)
             bands[name] = float(spectrum[mask].mean()) if mask.any() else 0.0
 
-        # Beat detection: compare instantaneous energy to local mean
+        # Beat detection: instantaneous energy above the local mean, gated by a
+        # refractory period so sustained loud passages don't fire every frame.
         energy = float(np.mean(fft_mag ** 2))
         mean_energy = float(self._energy_history.mean())
-        beat = energy > BEAT_THRESHOLD * mean_energy and energy > 1e-10
+        now = time.monotonic()
+        beat = (
+            energy > BEAT_THRESHOLD * mean_energy
+            and energy > 1e-10
+            and (now - self._last_beat_time) > MIN_BEAT_INTERVAL
+        )
         self._energy_history = np.roll(self._energy_history, 1)
         self._energy_history[0] = energy
 
         # BPM from inter-beat intervals (last 10 s window)
         if beat:
-            now = time.monotonic()
+            self._last_beat_time = now
             self._beat_times.append(now)
             self._beat_times = [t for t in self._beat_times if now - t <= 10.0]
             if len(self._beat_times) >= 4:
