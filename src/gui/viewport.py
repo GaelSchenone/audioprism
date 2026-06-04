@@ -52,6 +52,7 @@ class GLViewport(QOpenGLWidget):
         self.engine: VisualizerEngine | None = None
         self._seen_palette = -1
         self._failed = False
+        self._last_mouse: tuple[int, int] | None = None
 
     def _device_size(self) -> tuple[int, int]:
         dpr = self.devicePixelRatio()
@@ -94,6 +95,7 @@ class GLViewport(QOpenGLWidget):
             self._seen_palette = self.controller.palette_version
         self.engine.set_preset(self.controller.settings.preset)
         self.engine.settings = self.controller.settings
+        self.engine.camera = self.controller.camera
 
         # Render the visualization into the engine's offscreen FBO
         self.engine.render(
@@ -110,6 +112,26 @@ class GLViewport(QOpenGLWidget):
         self.engine.output_texture.use(0)
         self.blit_prog["tex"] = 0
         self.blit_vao.render(moderngl.TRIANGLES)
+
+    # ── 3D camera input (orbit / zoom) ──────────────────────────────────────────
+    def mousePressEvent(self, event) -> None:
+        self._last_mouse = (event.position().x(), event.position().y())
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._last_mouse is None:
+            return
+        x, y = event.position().x(), event.position().y()
+        dx, dy = x - self._last_mouse[0], y - self._last_mouse[1]
+        self._last_mouse = (x, y)
+        self.controller.camera.rotate(dx, -dy)   # screen-y is down → invert
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._last_mouse = None
+
+    def wheelEvent(self, event) -> None:
+        self.controller.camera.zoom(event.angleDelta().y())
+        self.update()
 
     def release(self) -> None:
         if self.engine:

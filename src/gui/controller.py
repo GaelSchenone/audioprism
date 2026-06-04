@@ -13,6 +13,7 @@ from src.audio.capture import AudioCapture
 from src.audio.analyzer import AudioAnalyzer, AudioData
 from src.config.settings import VisualizerSettings
 from src.config.theme import ThemeRegistry, Palette
+from src.camera3d import Camera3D
 from src.engine import VIDEO_PRESETS, DEPTH_PRESETS
 from src.video.capture import VideoSource
 from src.video.depth import DepthWorker
@@ -40,6 +41,7 @@ class Controller(QObject):
         self.video_error: str | None = None
         self.video: VideoSource | None = None
         self.depth: DepthWorker | None = None
+        self.camera = Camera3D()             # shared orbit camera for 3D presets
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None

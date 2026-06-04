@@ -77,6 +77,7 @@ class VisualizerEngine:
         self.presets = _build_presets(ctx)
         self.active = self.presets.get(settings.preset) or next(iter(self.presets.values()))
         self._silent = _silent_audio()
+        self.camera = None        # set by the viewport (shared Camera3D) for 3D presets
 
     def _build_targets(self) -> None:
         # Scene is HDR (f2) so bright ink blooms; output is u8 (f1) for display.
@@ -124,6 +125,8 @@ class VisualizerEngine:
             self.active.set_frame(frame)
         if hasattr(self.active, "set_depth"):
             self.active.set_depth(depth)
+        if hasattr(self.active, "set_mvp") and self.camera is not None:
+            self.active.set_mvp(self.camera.mvp(self.width / self.height))
         self.active.render(a, self.settings, self.palette_lut, bg)
 
         # 2) Bloom + composite → output texture
