@@ -8,3 +8,6 @@ dist/
 build/
 .env
 *.so
+
+# ML models (downloaded on demand)
+models/

@@ -17,6 +17,7 @@ from src.postprocess import PostProcess
 from src.presets.ascii_bars import AsciiBars
 from src.presets.ascii_cam import AsciiCam
 from src.presets.base import Preset
+from src.presets.depth_view import Depth
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
 from src.presets.radial import Radial
@@ -42,10 +43,11 @@ def _silent_audio() -> AudioData:
 
 
 PRESET_CLASSES: tuple[type[Preset], ...] = (
-    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam,
+    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam, Depth,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 VIDEO_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_video}
+DEPTH_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_depth}
 
 
 def _build_presets(ctx: moderngl.Context) -> dict[str, Preset]:
@@ -110,7 +112,7 @@ class VisualizerEngine:
         self.post.resize((width, height))
 
     # ── per-frame render ────────────────────────────────────────────────────────
-    def render(self, audio: AudioData | None, frame=None) -> None:
+    def render(self, audio: AudioData | None, frame=None, depth=None) -> None:
         bg = self.palette.background
         a = audio if audio is not None else self._silent
 
@@ -120,6 +122,8 @@ class VisualizerEngine:
         self.ctx.clear(bg[0], bg[1], bg[2], 1.0)
         if hasattr(self.active, "set_frame"):
             self.active.set_frame(frame)
+        if hasattr(self.active, "set_depth"):
+            self.active.set_depth(depth)
         self.active.render(a, self.settings, self.palette_lut, bg)
 
         # 2) Bloom + composite → output texture

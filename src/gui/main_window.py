@@ -65,9 +65,14 @@ class MainWindow(QMainWindow):
 
     def _update_status(self) -> None:
         if self.controller.video_error and self.controller.settings.preset in (
-            "ascii_cam", "point_cloud_cam",
+            "ascii_cam", "point_cloud_cam", "depth",
         ):
             self.statusBar().showMessage(f"⚠ camera: {self.controller.video_error}")
+            return
+        if self.controller.depth is not None and self.controller.latest_depth is not None:
+            self.statusBar().showMessage(
+                f"depth: {self.controller.depth.model}  {self.controller.depth_fps:.1f} fps"
+            )
             return
         if self.controller.audio_error:
             self.statusBar().showMessage(

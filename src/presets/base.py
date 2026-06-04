@@ -25,6 +25,7 @@ def fullscreen_vao(ctx: moderngl.Context, program: moderngl.Program) -> moderngl
 class Preset:
     name: str = "base"
     needs_video: bool = False        # True for camera-based presets (ascii_cam, …)
+    needs_depth: bool = False        # True for depth presets (depth, point_cloud_cam)
 
     def __init__(self, ctx: moderngl.Context) -> None:
         self.ctx = ctx

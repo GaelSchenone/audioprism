@@ -28,6 +28,7 @@ class VisualizerSettings:
     fps: int = 60
     # Video source for camera-based presets: int (camera index) or str (file path)
     video_source: int | str = 0
+    depth_model: str = "midas"             # 'midas' (fast) or 'depth_anything'
 
     def to_dict(self) -> dict:
         return asdict(self)

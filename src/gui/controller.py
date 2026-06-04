@@ -13,8 +13,9 @@ from src.audio.capture import AudioCapture
 from src.audio.analyzer import AudioAnalyzer, AudioData
 from src.config.settings import VisualizerSettings
 from src.config.theme import ThemeRegistry, Palette
-from src.engine import VIDEO_PRESETS
+from src.engine import VIDEO_PRESETS, DEPTH_PRESETS
 from src.video.capture import VideoSource
+from src.video.depth import DepthWorker
 
 
 class Controller(QObject):
@@ -33,9 +34,12 @@ class Controller(QObject):
         self.palette_version = 0
         self.latest_audio: AudioData | None = None
         self.latest_frame = None
+        self.latest_depth = None
+        self.depth_fps = 0.0
         self.audio_error: str | None = None
         self.video_error: str | None = None
         self.video: VideoSource | None = None
+        self.depth: DepthWorker | None = None
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -74,11 +78,22 @@ class Controller(QObject):
                 self.capture.start()
             except Exception as e:  # noqa: BLE001 — keep the GUI alive on audio failure
                 self.audio_error = f"start failed: {e}"
-        if self.settings.preset in VIDEO_PRESETS:
-            self._ensure_video()
+        self._sync_sources(self.settings.preset)
         self.timer.start(max(1, int(1000 / self.settings.fps)))
 
-    # ── video lifecycle ─────────────────────────────────────────────────────────
+    # ── video / depth lifecycle ─────────────────────────────────────────────────
+    def _sync_sources(self, preset: str) -> None:
+        needs_depth = preset in DEPTH_PRESETS
+        needs_cam = needs_depth or preset in VIDEO_PRESETS
+        if not needs_depth:
+            self._release_depth()
+        if needs_cam:
+            self._ensure_video()
+        else:
+            self._release_video()
+        if needs_depth:
+            self._ensure_depth()
+
     def _ensure_video(self) -> None:
         if self.video is not None:
             return
@@ -94,11 +109,32 @@ class Controller(QObject):
         self.latest_frame = None
         self.video_error = None
 
+    def _ensure_depth(self) -> None:
+        if self.depth is not None or self.video is None:
+            return
+        self.depth = DepthWorker(
+            lambda: self.video.read() if self.video else None,
+            model=self.settings.depth_model,
+        )
+        self.depth.start()
+
+    def _release_depth(self) -> None:
+        if self.depth is not None:
+            self.depth.stop()
+            self.depth = None
+        self.latest_depth = None
+        self.depth_fps = 0.0
+
     def set_video_source(self, spec: int | str) -> None:
         self.settings.video_source = spec
+        self._release_depth()
         self._release_video()
-        if self.settings.preset in VIDEO_PRESETS:
-            self._ensure_video()
+        self._sync_sources(self.settings.preset)
+
+    def set_depth_model(self, model: str) -> None:
+        self.settings.depth_model = model
+        if self.depth is not None:
+            self.depth.set_model(model)
 
     def stop(self) -> None:
         self.timer.stop()
@@ -121,10 +157,7 @@ class Controller(QObject):
 
     def set_preset(self, name: str) -> None:
         self.settings.preset = name
-        if name in VIDEO_PRESETS:
-            self._ensure_video()
-        else:
-            self._release_video()
+        self._sync_sources(name)
 
     # ── per-frame ──────────────────────────────────────────────────────────────
     def _on_tick(self) -> None:
@@ -134,10 +167,13 @@ class Controller(QObject):
                 self.latest_audio = self.analyzer.analyze(samples)
         if self.video is not None:
             self.latest_frame = self.video.read()
+        if self.depth is not None:
+            self.latest_depth, self.depth_fps = self.depth.read()
         for vp in self._viewports:
             vp.update()
         self.tick.emit()
 
     def stop_all(self) -> None:
         self.stop()
+        self._release_depth()
         self._release_video()
