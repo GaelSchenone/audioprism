@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from src.engine import PRESET_NAMES, PRESET_PARAMS, PRESET_NEEDS_CAMERA
 from src.gui.controller import Controller
+from src.gui.palette_editor import GradientSwatch, PaletteEditor
 from src.gui.widgets import bind_slider
 from src.video.capture import list_cameras
 from src.video.depth import MODELS as DEPTH_MODELS
@@ -65,7 +66,13 @@ class ConfigPanel(QWidget):
         self.palette.addItems(reg.palette_names())
         self.palette.setCurrentText(s.graphics_palette)
         self.palette.currentTextChanged.connect(controller.set_palette)
+        self.palette.currentTextChanged.connect(self._update_swatch)
         gl.addWidget(self.palette)
+        self.swatch = GradientSwatch(reg.get_palette(s.graphics_palette))
+        gl.addWidget(self.swatch)
+        edit = QPushButton("Edit / new palette…")
+        edit.clicked.connect(self._open_palette_editor)
+        gl.addWidget(edit)
         lay.addWidget(g)
 
         # ── Effect parameters (per-preset, shown/hidden) ──
@@ -129,6 +136,24 @@ class ConfigPanel(QWidget):
             any_visible = any_visible or visible
         self.param_group.setVisible(any_visible)
         self.camera_group.setVisible(name in PRESET_NEEDS_CAMERA)
+
+    # ── palette ──
+    def _update_swatch(self, name: str) -> None:
+        self.swatch.set_palette(self.controller.registry.get_palette(name))
+
+    def _open_palette_editor(self) -> None:
+        editor = PaletteEditor(self.controller, self.palette.currentText(), self)
+        editor.palette_saved.connect(self._on_palette_saved)
+        editor.exec()
+
+    def _on_palette_saved(self, name: str) -> None:
+        reg = self.controller.registry
+        self.palette.blockSignals(True)
+        self.palette.clear()
+        self.palette.addItems(reg.palette_names())
+        self.palette.blockSignals(False)
+        if name:
+            self.palette.setCurrentText(name)   # triggers set_palette + swatch
 
     # ── handlers ──
     def _on_camera(self, _i: int) -> None:
