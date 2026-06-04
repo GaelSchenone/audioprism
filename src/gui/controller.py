@@ -13,6 +13,8 @@ from src.audio.capture import AudioCapture
 from src.audio.analyzer import AudioAnalyzer, AudioData
 from src.config.settings import VisualizerSettings
 from src.config.theme import ThemeRegistry, Palette
+from src.engine import VIDEO_PRESETS
+from src.video.capture import VideoSource
 
 
 class Controller(QObject):
@@ -30,7 +32,10 @@ class Controller(QObject):
         self.palette: Palette = registry.get_palette(settings.graphics_palette)
         self.palette_version = 0
         self.latest_audio: AudioData | None = None
+        self.latest_frame = None
         self.audio_error: str | None = None
+        self.video_error: str | None = None
+        self.video: VideoSource | None = None
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -69,7 +74,31 @@ class Controller(QObject):
                 self.capture.start()
             except Exception as e:  # noqa: BLE001 — keep the GUI alive on audio failure
                 self.audio_error = f"start failed: {e}"
+        if self.settings.preset in VIDEO_PRESETS:
+            self._ensure_video()
         self.timer.start(max(1, int(1000 / self.settings.fps)))
+
+    # ── video lifecycle ─────────────────────────────────────────────────────────
+    def _ensure_video(self) -> None:
+        if self.video is not None:
+            return
+        self.video = VideoSource(self.settings.video_source)
+        if not self.video.start():
+            self.video_error = self.video.error
+            self.video = None
+
+    def _release_video(self) -> None:
+        if self.video is not None:
+            self.video.stop()
+            self.video = None
+        self.latest_frame = None
+        self.video_error = None
+
+    def set_video_source(self, spec: int | str) -> None:
+        self.settings.video_source = spec
+        self._release_video()
+        if self.settings.preset in VIDEO_PRESETS:
+            self._ensure_video()
 
     def stop(self) -> None:
         self.timer.stop()
@@ -92,6 +121,10 @@ class Controller(QObject):
 
     def set_preset(self, name: str) -> None:
         self.settings.preset = name
+        if name in VIDEO_PRESETS:
+            self._ensure_video()
+        else:
+            self._release_video()
 
     # ── per-frame ──────────────────────────────────────────────────────────────
     def _on_tick(self) -> None:
@@ -99,6 +132,12 @@ class Controller(QObject):
             samples = self.capture.read()
             if samples is not None:
                 self.latest_audio = self.analyzer.analyze(samples)
+        if self.video is not None:
+            self.latest_frame = self.video.read()
         for vp in self._viewports:
             vp.update()
         self.tick.emit()
+
+    def stop_all(self) -> None:
+        self.stop()
+        self._release_video()

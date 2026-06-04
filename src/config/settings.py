@@ -24,7 +24,10 @@ class VisualizerSettings:
     bloom: float = 0.6                      # 0-1 post-process glow intensity
     background_dim: float = 1.0             # 0-1 multiplier on palette background
     particle_count: int = 20000
+    ascii_grid: int = 96                    # ASCII columns (grid definition)
     fps: int = 60
+    # Video source for camera-based presets: int (camera index) or str (file path)
+    video_source: int | str = 0
 
     def to_dict(self) -> dict:
         return asdict(self)

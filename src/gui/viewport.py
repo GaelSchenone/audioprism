@@ -96,7 +96,7 @@ class GLViewport(QOpenGLWidget):
         self.engine.settings = self.controller.settings
 
         # Render the visualization into the engine's offscreen FBO
-        self.engine.render(self.controller.latest_audio)
+        self.engine.render(self.controller.latest_audio, self.controller.latest_frame)
 
         # Blit the result to the widget's framebuffer
         screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())

@@ -97,6 +97,12 @@ class ConfigPanel(QWidget):
         self.bloom = _slider(settings.bloom, 0.0, 1.0)
         self.bloom.valueChanged.connect(self._on_bloom)
         tune_lay.addWidget(self.bloom)
+
+        self.grid_label = QLabel(f"ASCII grid: {settings.ascii_grid}")
+        tune_lay.addWidget(self.grid_label)
+        self.grid = _slider(settings.ascii_grid, 16, 220)
+        self.grid.valueChanged.connect(self._on_grid)
+        tune_lay.addWidget(self.grid)
         layout.addWidget(tune_box)
 
         # ── Fullscreen ──
@@ -119,3 +125,8 @@ class ConfigPanel(QWidget):
 
     def _on_bloom(self) -> None:
         self.controller.settings.bloom = _slider_value(self.bloom)
+
+    def _on_grid(self) -> None:
+        value = int(_slider_value(self.grid))
+        self.controller.settings.ascii_grid = value
+        self.grid_label.setText(f"ASCII grid: {value}")

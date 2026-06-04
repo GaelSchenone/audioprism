@@ -116,6 +116,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="audioprism")
     parser.add_argument("--tui", action="store_true", help="Terminal monitor instead of GUI")
     parser.add_argument("--list-devices", action="store_true", help="List input devices and exit")
+    parser.add_argument("--video", metavar="PATH", help="Use a video file for camera presets (starts on ascii_cam)")
     parser.add_argument("--selftest", action="store_true", help="Launch GUI and quit after 2s")
     args = parser.parse_args()
 
@@ -125,6 +126,10 @@ def main() -> None:
 
     _install_crash_logger()
     settings = VisualizerSettings.load()
+
+    if args.video:
+        settings.video_source = args.video
+        settings.preset = "ascii_cam"
 
     if args.tui:
         device, sources = _pick_source(settings, prefer_system=True)

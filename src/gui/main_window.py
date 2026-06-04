@@ -64,6 +64,11 @@ class MainWindow(QMainWindow):
         self._fullscreen = None
 
     def _update_status(self) -> None:
+        if self.controller.video_error and self.controller.settings.preset in (
+            "ascii_cam", "point_cloud_cam",
+        ):
+            self.statusBar().showMessage(f"⚠ camera: {self.controller.video_error}")
+            return
         if self.controller.audio_error:
             self.statusBar().showMessage(
                 f"⚠ audio {self.controller.audio_error} — pick another Source"
@@ -83,6 +88,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         if self._fullscreen:
             self._fullscreen.close()
-        self.controller.stop()
+        self.controller.stop_all()
         self.preview.release()
         super().closeEvent(event)

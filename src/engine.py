@@ -15,6 +15,7 @@ from src.config.settings import VisualizerSettings
 from src.config.theme import Palette
 from src.postprocess import PostProcess
 from src.presets.ascii_bars import AsciiBars
+from src.presets.ascii_cam import AsciiCam
 from src.presets.base import Preset
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
@@ -26,10 +27,25 @@ _LUT_SIZE = 256
 _LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
+def _silent_audio() -> AudioData:
+    """A zero AudioData so presets still render when no audio is available."""
+    freqs = np.fft.rfftfreq(2048, 1.0 / 48000).astype(np.float32)
+    return AudioData(
+        waveform=np.zeros(2048, "f4"),
+        spectrum=np.zeros(len(freqs), "f4"),
+        frequencies=freqs,
+        bands={k: 0.0 for k in ("sub_bass", "bass", "mid", "high_mid", "high")},
+        volume=0.0,
+        beat=False,
+        bpm=0.0,
+    )
+
+
 PRESET_CLASSES: tuple[type[Preset], ...] = (
-    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars,
+    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
+VIDEO_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_video}
 
 
 def _build_presets(ctx: moderngl.Context) -> dict[str, Preset]:
@@ -58,6 +74,7 @@ class VisualizerEngine:
 
         self.presets = _build_presets(ctx)
         self.active = self.presets.get(settings.preset) or next(iter(self.presets.values()))
+        self._silent = _silent_audio()
 
     def _build_targets(self) -> None:
         # Scene is HDR (f2) so bright ink blooms; output is u8 (f1) for display.
@@ -93,15 +110,17 @@ class VisualizerEngine:
         self.post.resize((width, height))
 
     # ── per-frame render ────────────────────────────────────────────────────────
-    def render(self, audio: AudioData | None) -> None:
+    def render(self, audio: AudioData | None, frame=None) -> None:
         bg = self.palette.background
+        a = audio if audio is not None else self._silent
 
         # 1) Scene pass → HDR scene texture
         self.scene_fbo.use()
         self.ctx.viewport = (0, 0, self.width, self.height)
         self.ctx.clear(bg[0], bg[1], bg[2], 1.0)
-        if audio is not None:
-            self.active.render(audio, self.settings, self.palette_lut, bg)
+        if hasattr(self.active, "set_frame"):
+            self.active.set_frame(frame)
+        self.active.render(a, self.settings, self.palette_lut, bg)
 
         # 2) Bloom + composite → output texture
         bg_lum = float(np.array(bg, dtype=np.float32) @ _LUMA)
