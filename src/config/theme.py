@@ -175,10 +175,24 @@ _THEME_SPECS: list[dict] = [
 
 
 def _derive_palette(ui: UITheme) -> Palette:
-    """Build a graphics gradient from a UI theme's ink colors, low→high luminance."""
-    ink = _dedup([ui.accent, ui.red, ui.green, ui.fg])
+    """Build a graphics gradient from a UI theme's ink colors, low→high luminance.
+
+    Visualizers are emissive (bright ink on a dark canvas), so a light UI
+    background is replaced with a dark, theme-tinted one and the dark text color
+    (fg) is dropped from the ramp — on light themes fg is meant for text, not as
+    glowing ink.
+    """
+    ink = [ui.accent, ui.red, ui.green]
+    if _luminance(ui.fg) > 0.4:          # bright fg (dark themes) makes good ink
+        ink.append(ui.fg)
+    ink = _dedup(ink)
     ink.sort(key=_luminance)
-    return Palette(name=ui.name, colors=ink, background=ui.bg, accent=ui.accent)
+
+    background = ui.bg
+    if _luminance(ui.bg) > 0.5:          # light theme → dark, theme-tinted canvas
+        background = tuple(c * 0.10 for c in ui.border)
+
+    return Palette(name=ui.name, colors=ink, background=background, accent=ui.accent)
 
 
 # ── registry ───────────────────────────────────────────────────────────────────
