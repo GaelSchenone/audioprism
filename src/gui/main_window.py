@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -52,7 +54,33 @@ class MainWindow(QMainWindow):
         self.sidebar.output_clicked.connect(self.open_output)
         controller.tick.connect(self._update_status)
 
+        self._install_shortcuts()
         self.apply_ui_theme(controller.settings.ui_theme)
+
+    # ── keyboard shortcuts ──
+    def _install_shortcuts(self) -> None:
+        for d in range(10):
+            QShortcut(QKeySequence(str(d)), self).activated.connect(
+                lambda d=d: self._select_preset_digit(d)
+            )
+        QShortcut(QKeySequence("Tab"), self).activated.connect(lambda: self._cycle_preset(1))
+        QShortcut(QKeySequence("Shift+Tab"), self).activated.connect(lambda: self._cycle_preset(-1))
+        QShortcut(QKeySequence(Qt.Key_Space), self).activated.connect(self._toggle_pause)
+        QShortcut(QKeySequence("F"), self).activated.connect(self.open_output)
+
+    def _select_preset_digit(self, d: int) -> None:
+        idx = 9 if d == 0 else d - 1
+        if 0 <= idx < self.panel.preset.count():
+            self.panel.preset.setCurrentIndex(idx)
+
+    def _cycle_preset(self, step: int) -> None:
+        combo = self.panel.preset
+        combo.setCurrentIndex((combo.currentIndex() + step) % combo.count())
+
+    def _toggle_pause(self) -> None:
+        self.controller.toggle_pause()
+        if self.controller.paused:
+            self.statusBar().showMessage("⏸ paused — Space to resume")
 
     # ── options flyout ──
     def toggle_flyout(self) -> None:

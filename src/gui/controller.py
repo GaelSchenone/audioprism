@@ -42,6 +42,7 @@ class Controller(QObject):
         self.video: VideoSource | None = None
         self.depth: DepthWorker | None = None
         self.camera = Camera3D()             # shared orbit camera for 3D presets
+        self.paused = False
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -166,6 +167,13 @@ class Controller(QObject):
         self.settings.fps = fps
         if self.timer.isActive():
             self.timer.start(max(1, int(1000 / fps)))
+
+    def toggle_pause(self) -> None:
+        self.paused = not self.paused
+        if self.paused:
+            self.timer.stop()
+        else:
+            self.timer.start(max(1, int(1000 / self.settings.fps)))
 
     def _on_tick(self) -> None:
         if self.capture and self.analyzer:
