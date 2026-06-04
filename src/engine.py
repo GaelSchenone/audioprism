@@ -20,6 +20,7 @@ from src.presets.base import Preset
 from src.presets.depth_view import Depth
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
+from src.presets.point_cloud_audio import PointCloudAudio
 from src.presets.radial import Radial
 from src.presets.spectrum import Spectrum
 from src.presets.waveform import Waveform
@@ -44,6 +45,7 @@ def _silent_audio() -> AudioData:
 
 PRESET_CLASSES: tuple[type[Preset], ...] = (
     Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam, Depth,
+    PointCloudAudio,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 VIDEO_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_video}
