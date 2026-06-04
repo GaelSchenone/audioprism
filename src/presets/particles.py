@@ -56,23 +56,24 @@ class Particles(Preset):
 
     def __init__(self, ctx: moderngl.Context) -> None:
         super().__init__(ctx)
-        self.n = 20000
+        self.max_n = 60000
+        self.n = 20000                                       # active (from settings)
         self.prog = ctx.program(vertex_shader=_VERT, fragment_shader=_FRAG)
-        self.vbo = ctx.buffer(reserve=self.n * 3 * 4)        # pos(2f) + life(1f)
+        self.vbo = ctx.buffer(reserve=self.max_n * 3 * 4)    # pos(2f) + life(1f)
         self.vao = ctx.vertex_array(
             self.prog, [(self.vbo, "2f 1f", "in_pos", "in_life")]
         )
 
         self.rng = np.random.default_rng(1234)               # deterministic
-        self.pos = np.zeros((self.n, 2), dtype="f4")
-        self.vel = np.zeros((self.n, 2), dtype="f4")
-        self.life = np.zeros(self.n, dtype="f4")             # all dead initially
-        self._interleaved = np.zeros((self.n, 3), dtype="f4")
+        self.pos = np.zeros((self.max_n, 2), dtype="f4")
+        self.vel = np.zeros((self.max_n, 2), dtype="f4")
+        self.life = np.zeros(self.max_n, dtype="f4")         # all dead initially
+        self._interleaved = np.zeros((self.max_n, 3), dtype="f4")
 
     def _emit(self, count: int, bass: float, beat: bool) -> None:
         if count <= 0:
             return
-        dead = np.where(self.life <= 0.0)[0]
+        dead = np.where(self.life[:self.n] <= 0.0)[0]
         if len(dead) == 0:
             return
         k = min(count, len(dead))
@@ -93,17 +94,19 @@ class Particles(Preset):
             n_emit += int(self.n * 0.12)
         self._emit(n_emit, bass, beat)
 
-        alive = self.life > 0.0
+        n = self.n
+        life, vel, pos = self.life[:n], self.vel[:n], self.pos[:n]
+        alive = life > 0.0
         # Swirl: rotate velocities slightly for visual motion
         ang = _SWIRL * _DT
         cos_a, sin_a = np.cos(ang), np.sin(ang)
-        vx, vy = self.vel[alive, 0].copy(), self.vel[alive, 1].copy()
-        self.vel[alive, 0] = vx * cos_a - vy * sin_a
-        self.vel[alive, 1] = vx * sin_a + vy * cos_a
+        vx, vy = vel[alive, 0].copy(), vel[alive, 1].copy()
+        vel[alive, 0] = vx * cos_a - vy * sin_a
+        vel[alive, 1] = vx * sin_a + vy * cos_a
 
-        self.pos[alive] += self.vel[alive] * _DT
-        self.vel[alive] *= _DRAG
-        self.life[alive] -= _DT * _LIFE_DECAY
+        pos[alive] += vel[alive] * _DT
+        vel[alive] *= _DRAG
+        life[alive] -= _DT * _LIFE_DECAY
 
     def render(
         self,
@@ -112,11 +115,13 @@ class Particles(Preset):
         palette_lut: moderngl.Texture,
         background: tuple[float, float, float],
     ) -> None:
+        self.n = int(np.clip(settings.particle_count, 500, self.max_n))
         self._step(audio)
 
-        self._interleaved[:, :2] = self.pos
-        self._interleaved[:, 2] = np.clip(self.life, 0.0, 1.0)
-        self.vbo.write(np.ascontiguousarray(self._interleaved).tobytes())
+        n = self.n
+        self._interleaved[:n, :2] = self.pos[:n]
+        self._interleaved[:n, 2] = np.clip(self.life[:n], 0.0, 1.0)
+        self.vbo.write(np.ascontiguousarray(self._interleaved[:n]).tobytes())
 
         _, _, w, h = self.ctx.viewport
         self.ctx.enable(moderngl.PROGRAM_POINT_SIZE)
@@ -127,7 +132,7 @@ class Particles(Preset):
         self.prog["palette"] = 0
         self.prog["aspect"] = (w / h) if h else 1.0
         self.prog["point_scale"] = max(2.0, h * 0.010)
-        self.vao.render(mode=moderngl.POINTS, vertices=self.n)
+        self.vao.render(mode=moderngl.POINTS, vertices=n)
 
         # Restore default blending so the bloom passes composite correctly
         self.ctx.disable(moderngl.BLEND)

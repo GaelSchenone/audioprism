@@ -162,8 +162,14 @@ class Controller(QObject):
         self._sync_sources(name)
 
     # ── per-frame ──────────────────────────────────────────────────────────────
+    def set_fps(self, fps: int) -> None:
+        self.settings.fps = fps
+        if self.timer.isActive():
+            self.timer.start(max(1, int(1000 / fps)))
+
     def _on_tick(self) -> None:
         if self.capture and self.analyzer:
+            self.analyzer.smoothing = self.settings.smoothing
             samples = self.capture.read()
             if samples is not None:
                 self.latest_audio = self.analyzer.analyze(samples)

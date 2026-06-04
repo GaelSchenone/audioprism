@@ -25,6 +25,8 @@ class VisualizerSettings:
     background_dim: float = 1.0             # 0-1 multiplier on palette background
     particle_count: int = 20000
     ascii_grid: int = 96                    # ASCII columns (grid definition)
+    matrix_density: int = 48                # matrix rain columns
+    point_size: float = 1.0                 # point-cloud size multiplier
     fps: int = 60
     # Video source for camera-based presets: int (camera index) or str (file path)
     video_source: int | str = 0

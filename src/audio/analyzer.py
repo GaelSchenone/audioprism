@@ -37,6 +37,7 @@ class AudioData:
 class AudioAnalyzer:
     def __init__(self, sample_rate: int = SAMPLE_RATE) -> None:
         self.sample_rate = sample_rate
+        self.smoothing = SMOOTHING               # live-adjustable from settings
         self._smoothed = np.zeros(FFT_SIZE // 2 + 1, dtype=np.float32)
         self._energy_history = np.zeros(BEAT_HISTORY_LEN, dtype=np.float64)
         self._beat_times: list[float] = []
@@ -55,7 +56,8 @@ class AudioAnalyzer:
         fft_mag = np.abs(np.fft.rfft(frame * self._window)).astype(np.float32) / FFT_SIZE
 
         # Exponential smoothing
-        self._smoothed[:] = SMOOTHING * self._smoothed + (1.0 - SMOOTHING) * fft_mag
+        s = self.smoothing
+        self._smoothed[:] = s * self._smoothed + (1.0 - s) * fft_mag
 
         # Normalize to 0–1
         peak = self._smoothed.max()

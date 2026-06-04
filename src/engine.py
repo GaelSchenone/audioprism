@@ -116,7 +116,8 @@ class VisualizerEngine:
 
     # ── per-frame render ────────────────────────────────────────────────────────
     def render(self, audio: AudioData | None, frame=None, depth=None) -> None:
-        bg = self.palette.background
+        dim = self.settings.background_dim
+        bg = tuple(c * dim for c in self.palette.background)
         a = audio if audio is not None else self._silent
 
         # 1) Scene pass → HDR scene texture

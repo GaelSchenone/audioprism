@@ -51,7 +51,8 @@ def _run_gui(settings: VisualizerSettings, selftest: bool) -> int:
     from src.gui.main_window import MainWindow
 
     registry = default_registry()
-    device, sources = _pick_source(settings, prefer_system=True)
+    # Honor the saved source if still present; otherwise fall back to system output
+    device, sources = _pick_source(settings, prefer_system=False)
     if device is not None:
         settings.source_index = device
 

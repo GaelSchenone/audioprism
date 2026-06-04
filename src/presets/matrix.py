@@ -82,12 +82,13 @@ class Matrix(Preset):
         self.time += self._DT
         _, _, w, h = self.ctx.viewport
         aspect = (w / h) if h else 1.0
-        rows = max(8.0, round(self.COLS / aspect))
+        cols = max(8, int(settings.matrix_density))
+        rows = max(8.0, round(cols / aspect))
 
         palette_lut.use(0)
         self.prog["palette"] = 0
         self.prog["bg"] = tuple(background)
-        self.prog["grid"] = (float(self.COLS), float(rows))
+        self.prog["grid"] = (float(cols), float(rows))
         self.prog["time"] = float(self.time)
         self.prog["volume"] = float(audio.volume)
         self.vao.render(moderngl.TRIANGLES)

@@ -122,7 +122,7 @@ class PointCloudAudio(Preset):
         self.prog["mvp"].write(np.ascontiguousarray(self._mvp, dtype="f4").tobytes())
         self.prog["time"] = float(self.time)
         self.prog["volume"] = float(audio.volume)
-        self.prog["point_scale"] = max(2.0, h * 0.05)
+        self.prog["point_scale"] = max(2.0, h * 0.05) * settings.point_size
         self.vao.render(mode=moderngl.POINTS, vertices=self.n)
 
         self.ctx.disable(moderngl.BLEND)

@@ -14,6 +14,7 @@ from src.audio.pipewire import AudioSource
 from src.gui.config_panel import ConfigPanel
 from src.gui.controller import Controller
 from src.gui.fullscreen import FullscreenWindow
+from src.gui.settings_dialog import SettingsDialog
 from src.gui.viewport import GLViewport
 
 
@@ -29,7 +30,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        self.panel = ConfigPanel(controller, sources)
+        self.sources = sources
+        self.panel = ConfigPanel(controller)
         self.preview = GLViewport(controller)
         controller.register_viewport(self.preview)
 
@@ -39,12 +41,21 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self._fullscreen: FullscreenWindow | None = None
+        self._settings: SettingsDialog | None = None
 
         self.panel.fullscreen_requested.connect(self.open_fullscreen)
-        self.panel.ui_theme_changed.connect(self.apply_ui_theme)
+        self.panel.settings_requested.connect(self.open_settings)
         controller.tick.connect(self._update_status)
 
         self.apply_ui_theme(controller.settings.ui_theme)
+
+    def open_settings(self) -> None:
+        if self._settings is None:
+            self._settings = SettingsDialog(self.controller, self.sources, self)
+            self._settings.ui_theme_changed.connect(self.apply_ui_theme)
+        self._settings.show()
+        self._settings.raise_()
+        self._settings.activateWindow()
 
     def apply_ui_theme(self, name: str) -> None:
         qss = self.controller.registry.get_ui(name).qss()
@@ -91,6 +102,9 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event) -> None:
+        self.controller.settings.save()
+        if self._settings:
+            self._settings.close()
         if self._fullscreen:
             self._fullscreen.close()
         self.controller.stop_all()
