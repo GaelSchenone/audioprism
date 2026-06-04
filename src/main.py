@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import sys
+import os
 import time
+import tempfile
 import argparse
 import datetime
 import traceback
 
 import sounddevice as sd
 
-CRASH_LOG = "/tmp/audioprism_crash.log"
+CRASH_LOG = os.path.join(tempfile.gettempdir(), "audioprism_crash.log")
 
 
 def _install_crash_logger() -> None:

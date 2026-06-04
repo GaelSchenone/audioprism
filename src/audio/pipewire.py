@@ -42,11 +42,37 @@ def _pactl_app_names() -> dict[str, str]:
 class AudioSource:
     device_index: int   # sounddevice device index
     name: str           # display name shown to the user
-    kind: str           # 'system' | 'app'
+    kind: str           # 'system' | 'app' | 'input'
 
     def __str__(self) -> str:
-        tag = "System output" if self.kind == "system" else "App"
+        tag = {"system": "System output", "app": "App"}.get(self.kind, "Input")
         return f"{tag}: {self.name}"
+
+
+def _has_pactl() -> bool:
+    import shutil
+    return shutil.which("pactl") is not None
+
+
+def _list_input_devices() -> list[AudioSource]:
+    """Fallback for non-PipeWire systems (Windows/macOS): list input devices.
+
+    On Windows, capture the system output via a loopback input — enable
+    "Stereo Mix" or install a virtual cable (e.g. VB-CABLE), then pick it here.
+    """
+    import sounddevice as sd
+
+    sources: list[AudioSource] = []
+    seen: set[str] = set()
+    for i, dev in enumerate(sd.query_devices()):
+        if dev["max_input_channels"] <= 0:
+            continue
+        name = dev["name"]
+        if name in seen:
+            continue
+        seen.add(name)
+        sources.append(AudioSource(device_index=i, name=name, kind="input"))
+    return sources
 
 
 # ── Source enumeration ─────────────────────────────────────────────────────────
@@ -56,8 +82,12 @@ def list_sources() -> list[AudioSource]:
     Return all capturable audio sources:
       - System output monitors (speaker / headphone outputs)
       - Per-app streams exposed by PipeWire as capture sources
+      - On non-PipeWire systems (Windows/macOS): all input devices
     """
     import sounddevice as sd
+
+    if not _has_pactl():
+        return _list_input_devices()
 
     app_names = _pactl_app_names()
     sources: list[AudioSource] = []

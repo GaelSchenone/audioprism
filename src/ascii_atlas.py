@@ -18,9 +18,16 @@ from PIL import Image, ImageDraw, ImageFont
 DEFAULT_RAMP = " .:-=+*#%@"
 
 _FONT_CANDIDATES = [
+    # Linux
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
     "/usr/share/fonts/truetype/ttf-bitstream-vera/VeraMono.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    # Windows
+    "C:/Windows/Fonts/consola.ttf",
+    "C:/Windows/Fonts/cour.ttf",
+    # macOS
+    "/System/Library/Fonts/Menlo.ttc",
+    "/System/Library/Fonts/Monaco.ttf",
 ]
 
 

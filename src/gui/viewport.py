@@ -8,6 +8,8 @@ preset, settings) from the controller every frame.
 from __future__ import annotations
 
 import datetime
+import os
+import tempfile
 import traceback
 
 import moderngl
@@ -16,7 +18,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from src.engine import VisualizerEngine
 from src.presets.base import fullscreen_vao
 
-_CRASH_LOG = "/tmp/audioprism_crash.log"
+_CRASH_LOG = os.path.join(tempfile.gettempdir(), "audioprism_crash.log")
 
 
 def _log_gl_error(where: str, exc: Exception) -> None:
