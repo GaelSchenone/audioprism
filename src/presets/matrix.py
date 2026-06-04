@@ -63,6 +63,7 @@ void main() {
 
 class Matrix(Preset):
     name = "matrix"
+    params = ("matrix_density",)
     COLS = 48
     _DT = 1.0 / 60.0
 

@@ -53,6 +53,7 @@ _SWIRL = 0.6
 
 class Particles(Preset):
     name = "particles"
+    params = ("particle_count",)
 
     def __init__(self, ctx: moderngl.Context) -> None:
         super().__init__(ctx)

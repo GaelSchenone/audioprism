@@ -26,6 +26,7 @@ class Preset:
     name: str = "base"
     needs_video: bool = False        # True for camera-based presets (ascii_cam, …)
     needs_depth: bool = False        # True for depth presets (depth, point_cloud_cam)
+    params: tuple[str, ...] = ()     # settings fields this preset exposes in the panel
 
     def __init__(self, ctx: moderngl.Context) -> None:
         self.ctx = ctx

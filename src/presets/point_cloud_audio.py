@@ -69,6 +69,7 @@ def _fibonacci_sphere(n: int) -> np.ndarray:
 
 class PointCloudAudio(Preset):
     name = "point_cloud_audio"
+    params = ("point_size",)
 
     def __init__(self, ctx: moderngl.Context) -> None:
         super().__init__(ctx)

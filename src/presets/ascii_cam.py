@@ -70,6 +70,7 @@ _DT = 1.0 / 60.0
 class AsciiCam(Preset):
     name = "ascii_cam"
     needs_video = True
+    params = ("ascii_grid",)
 
     def __init__(self, ctx: moderngl.Context) -> None:
         super().__init__(ctx)

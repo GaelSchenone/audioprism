@@ -1,4 +1,4 @@
-"""Main editor window: config panel + preview viewport + status bar."""
+"""Main editor window: sidebar + config panel + preview viewport + status bar."""
 
 from __future__ import annotations
 
@@ -12,9 +12,11 @@ from PySide6.QtWidgets import (
 
 from src.audio.pipewire import AudioSource
 from src.gui.config_panel import ConfigPanel
+from src.gui.config_window import ConfigWindow
 from src.gui.controller import Controller
-from src.gui.fullscreen import FullscreenWindow
-from src.gui.settings_dialog import SettingsDialog
+from src.gui.options_flyout import OptionsFlyout
+from src.gui.output_window import OutputWindow
+from src.gui.sidebar import Sidebar
 from src.gui.viewport import GLViewport
 
 
@@ -22,6 +24,7 @@ class MainWindow(QMainWindow):
     def __init__(self, controller: Controller, sources: list[AudioSource]) -> None:
         super().__init__()
         self.controller = controller
+        self.sources = sources
         self.setWindowTitle("audioprism")
         self.resize(1100, 640)
 
@@ -30,67 +33,79 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        self.sources = sources
+        self.sidebar = Sidebar()
         self.panel = ConfigPanel(controller)
         self.preview = GLViewport(controller)
         controller.register_viewport(self.preview)
 
+        layout.addWidget(self.sidebar)
         layout.addWidget(self.panel)
         layout.addWidget(self.preview, stretch=1)
         self.setCentralWidget(central)
 
         self.setStatusBar(QStatusBar())
-        self._fullscreen: FullscreenWindow | None = None
-        self._settings: SettingsDialog | None = None
+        self._output: OutputWindow | None = None
+        self._flyout: OptionsFlyout | None = None
+        self._config: ConfigWindow | None = None
 
-        self.panel.fullscreen_requested.connect(self.open_fullscreen)
-        self.panel.settings_requested.connect(self.open_settings)
+        self.sidebar.options_clicked.connect(self.toggle_flyout)
+        self.sidebar.output_clicked.connect(self.open_output)
         controller.tick.connect(self._update_status)
 
         self.apply_ui_theme(controller.settings.ui_theme)
 
-    def open_settings(self) -> None:
-        if self._settings is None:
-            self._settings = SettingsDialog(self.controller, self.sources, self)
-            self._settings.ui_theme_changed.connect(self.apply_ui_theme)
-        self._settings.show()
-        self._settings.raise_()
-        self._settings.activateWindow()
+    # ── options flyout ──
+    def toggle_flyout(self) -> None:
+        if self._flyout is None:
+            self._flyout = OptionsFlyout(self.controller, self)
+            self._flyout.config_requested.connect(self.open_config)
+        if self._flyout.isVisible():
+            self._flyout.hide()
+            return
+        btn = self.sidebar.options_btn
+        pos = btn.mapToGlobal(btn.rect().topRight())
+        self._flyout.adjustSize()
+        self._flyout.move(pos.x() + 6, pos.y())
+        self._flyout.show()
+
+    def open_config(self) -> None:
+        if self._config is None:
+            self._config = ConfigWindow(self.controller, self.sources, self)
+            self._config.ui_theme_changed.connect(self.apply_ui_theme)
+        self._config.show()
+        self._config.raise_()
+        self._config.activateWindow()
 
     def apply_ui_theme(self, name: str) -> None:
         qss = self.controller.registry.get_ui(name).qss()
         QApplication.instance().setStyleSheet(qss)
 
-    def open_fullscreen(self) -> None:
-        if self._fullscreen is not None:
-            self._fullscreen.activateWindow()
+    # ── output window ──
+    def open_output(self) -> None:
+        if self._output is not None:
+            self._output.raise_()
+            self._output.activateWindow()
             return
-        screens = QApplication.screens()
-        target = screens[1] if len(screens) > 1 else screens[0]
-        self._fullscreen = FullscreenWindow(self.controller, target)
-        self._fullscreen.destroyed.connect(self._on_fullscreen_closed)
-        self._fullscreen.showFullScreen()
+        self._output = OutputWindow(self.controller)
+        self._output.destroyed.connect(self._on_output_closed)
+        self._output.show()
 
-    def _on_fullscreen_closed(self, *_) -> None:
-        self._fullscreen = None
+    def _on_output_closed(self, *_) -> None:
+        self._output = None
 
+    # ── status ──
     def _update_status(self) -> None:
-        if self.controller.video_error and self.controller.settings.preset in (
-            "ascii_cam", "point_cloud_cam", "depth",
-        ):
-            self.statusBar().showMessage(f"⚠ camera: {self.controller.video_error}")
+        c = self.controller
+        if c.video_error and c.settings.preset in ("ascii_cam", "point_cloud_cam", "depth"):
+            self.statusBar().showMessage(f"⚠ camera: {c.video_error}")
             return
-        if self.controller.depth is not None and self.controller.latest_depth is not None:
-            self.statusBar().showMessage(
-                f"depth: {self.controller.depth.model}  {self.controller.depth_fps:.1f} fps"
-            )
+        if c.depth is not None and c.latest_depth is not None:
+            self.statusBar().showMessage(f"depth: {c.depth.model}  {c.depth_fps:.1f} fps")
             return
-        if self.controller.audio_error:
-            self.statusBar().showMessage(
-                f"⚠ audio {self.controller.audio_error} — pick another Source"
-            )
+        if c.audio_error:
+            self.statusBar().showMessage(f"⚠ audio {c.audio_error} — pick another Source")
             return
-        a = self.controller.latest_audio
+        a = c.latest_audio
         if a is None:
             self.statusBar().showMessage("waiting for audio…")
             return
@@ -103,10 +118,12 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.controller.settings.save()
-        if self._settings:
-            self._settings.close()
-        if self._fullscreen:
-            self._fullscreen.close()
+        if self._flyout:
+            self._flyout.close()
+        if self._config:
+            self._config.close()
+        if self._output:
+            self._output.close()
         self.controller.stop_all()
         self.preview.release()
         super().closeEvent(event)

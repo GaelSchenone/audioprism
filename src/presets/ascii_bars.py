@@ -49,6 +49,7 @@ void main() {
 
 class AsciiBars(Preset):
     name = "ascii_bars"
+    params = ("ascii_grid",)
     COLS = 64
     FMIN = 30.0
     FMAX = 16000.0

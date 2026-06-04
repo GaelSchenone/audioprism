@@ -50,6 +50,8 @@ PRESET_CLASSES: tuple[type[Preset], ...] = (
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 VIDEO_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_video}
 DEPTH_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_depth}
+PRESET_PARAMS: dict[str, tuple[str, ...]] = {c.name: c.params for c in PRESET_CLASSES}
+PRESET_NEEDS_CAMERA: set[str] = VIDEO_PRESETS | DEPTH_PRESETS
 
 
 def _build_presets(ctx: moderngl.Context) -> dict[str, Preset]:

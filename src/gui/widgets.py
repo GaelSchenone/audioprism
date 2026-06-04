@@ -51,3 +51,11 @@ class LabeledSlider(QWidget):
 
     def _update_header(self, v: float) -> None:
         self.header.setText(f"{self._label}: {self._fmt.format(v)}")
+
+
+def bind_slider(settings, label, lo, hi, attr, integer=False) -> LabeledSlider:
+    """A LabeledSlider that writes its value straight into settings.<attr>."""
+    w = LabeledSlider(label, lo, hi, getattr(settings, attr), integer=integer)
+    cast = int if integer else float
+    w.changed.connect(lambda v: setattr(settings, attr, cast(v)))
+    return w

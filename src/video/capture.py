@@ -71,7 +71,25 @@ class VideoSource:
 
 
 def list_cameras(max_devices: int = 6) -> list[int]:
-    """Probe camera indices that can be opened. Best-effort (opens briefly)."""
+    """Detect connected camera indices.
+
+    On Linux this scans /dev/video* device nodes so it doesn't power on the
+    camera (no LED flash) just to enumerate. Falls back to opening devices on
+    other platforms.
+    """
+    import glob
+    import re
+    import sys
+
+    if sys.platform.startswith("linux"):
+        idxs = []
+        for node in glob.glob("/dev/video*"):
+            m = re.search(r"(\d+)$", node)
+            if m:
+                idxs.append(int(m.group(1)))
+        if idxs:
+            return sorted(set(idxs))
+
     available = []
     for i in range(max_devices):
         cap = cv2.VideoCapture(i)
