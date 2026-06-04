@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
 
         self.sidebar.options_clicked.connect(self.toggle_flyout)
         self.sidebar.output_clicked.connect(self.open_output)
+        self.sidebar.reset_clicked.connect(self.reset_view)
         controller.tick.connect(self._update_status)
 
         self._install_shortcuts()
@@ -67,6 +68,11 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Shift+Tab"), self).activated.connect(lambda: self._cycle_preset(-1))
         QShortcut(QKeySequence(Qt.Key_Space), self).activated.connect(self._toggle_pause)
         QShortcut(QKeySequence("F"), self).activated.connect(self.open_output)
+        QShortcut(QKeySequence("R"), self).activated.connect(self.reset_view)
+
+    def reset_view(self) -> None:
+        self.controller.camera.reset()
+        self.controller.refresh()
 
     def _select_preset_digit(self, d: int) -> None:
         idx = 9 if d == 0 else d - 1

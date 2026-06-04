@@ -145,6 +145,11 @@ class Controller(QObject):
             self.capture.stop()
 
     # ── viewports ──────────────────────────────────────────────────────────────
+    def refresh(self) -> None:
+        """Repaint all viewports immediately (e.g. after a view reset while paused)."""
+        for vp in self._viewports:
+            vp.update()
+
     def register_viewport(self, vp) -> None:
         self._viewports.append(vp)
 

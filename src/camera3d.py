@@ -24,6 +24,12 @@ class Camera3D:
         self.min_distance = 1.0
         self.max_distance = 15.0
 
+    def reset(self) -> None:
+        self.yaw = 0.6
+        self.pitch = 0.35
+        self.distance = 3.2
+        self.target[:] = 0.0
+
     def rotate(self, dx: float, dy: float, speed: float = 0.006) -> None:
         self.yaw += dx * speed
         self.pitch += dy * speed
