@@ -10,6 +10,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -96,6 +97,12 @@ class SettingsDialog(QDialog):
         self.depth.setCurrentText(s.depth_model)
         self.depth.currentTextChanged.connect(controller.set_depth_model)
         gl.addWidget(self.depth)
+        load_video = QPushButton("Load video file…")
+        load_video.clicked.connect(self._load_video)
+        gl.addWidget(load_video)
+        self.video_label = QLabel(self._video_label_text())
+        self.video_label.setWordWrap(True)
+        gl.addWidget(self.video_label)
         lay.addWidget(g)
 
         # ── Preset parameters ──
@@ -140,3 +147,15 @@ class SettingsDialog(QDialog):
     def _on_theme(self, name: str) -> None:
         self.controller.settings.ui_theme = name
         self.ui_theme_changed.emit(name)
+
+    def _video_label_text(self) -> str:
+        src = self.controller.settings.video_source
+        return f"video: {src}" if isinstance(src, str) else f"using camera {src}"
+
+    def _load_video(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select a video file", "", "Video (*.mp4 *.avi *.mov *.mkv *.webm)"
+        )
+        if path:
+            self.controller.set_video_source(path)
+            self.video_label.setText(self._video_label_text())
