@@ -21,6 +21,7 @@ from src.presets.depth_view import Depth
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
 from src.presets.point_cloud_audio import PointCloudAudio
+from src.presets.point_cloud_cam import PointCloudCam
 from src.presets.radial import Radial
 from src.presets.spectrum import Spectrum
 from src.presets.waveform import Waveform
@@ -45,7 +46,7 @@ def _silent_audio() -> AudioData:
 
 PRESET_CLASSES: tuple[type[Preset], ...] = (
     Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam, Depth,
-    PointCloudAudio,
+    PointCloudAudio, PointCloudCam,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]
 VIDEO_PRESETS: set[str] = {c.name for c in PRESET_CLASSES if c.needs_video}
@@ -85,9 +86,13 @@ class VisualizerEngine:
 
     def _build_targets(self) -> None:
         # Scene is HDR (f2) so bright ink blooms; output is u8 (f1) for display.
+        # A depth buffer lets 3D point-cloud presets occlude correctly.
         self.scene_texture = self.ctx.texture((self.width, self.height), 4, dtype="f2")
         self.scene_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
-        self.scene_fbo = self.ctx.framebuffer(color_attachments=[self.scene_texture])
+        self.scene_depth = self.ctx.depth_renderbuffer((self.width, self.height))
+        self.scene_fbo = self.ctx.framebuffer(
+            color_attachments=[self.scene_texture], depth_attachment=self.scene_depth
+        )
 
         self.output_texture = self.ctx.texture((self.width, self.height), 4, dtype="f1")
         self.output_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
@@ -110,7 +115,7 @@ class VisualizerEngine:
         if (width, height) == (self.width, self.height) or width <= 0 or height <= 0:
             return
         self.width, self.height = width, height
-        for obj in (self.scene_fbo, self.scene_texture,
+        for obj in (self.scene_fbo, self.scene_texture, self.scene_depth,
                     self.output_fbo, self.output_texture):
             obj.release()
         self._build_targets()
@@ -144,6 +149,6 @@ class VisualizerEngine:
             preset.release()
         self.post.release()
         self.palette_lut.release()
-        for obj in (self.scene_fbo, self.scene_texture,
+        for obj in (self.scene_fbo, self.scene_texture, self.scene_depth,
                     self.output_fbo, self.output_texture):
             obj.release()
