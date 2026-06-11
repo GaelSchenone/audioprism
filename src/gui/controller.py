@@ -15,6 +15,7 @@ from src.config.settings import VisualizerSettings
 from src.config.theme import ThemeRegistry, Palette
 from src.camera3d import Camera3D
 from src.engine import VIDEO_PRESETS, DEPTH_PRESETS
+from src.recorder import VideoRecorder
 from src.video.capture import VideoSource
 from src.video.depth import DepthWorker
 
@@ -43,6 +44,8 @@ class Controller(QObject):
         self.depth: DepthWorker | None = None
         self.camera = Camera3D()             # shared orbit camera for 3D presets
         self.paused = False
+        self.recorder: VideoRecorder | None = None
+        self.recording_path: str | None = None
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -157,6 +160,35 @@ class Controller(QObject):
         if vp in self._viewports:
             self._viewports.remove(vp)
 
+    # ── recording ────────────────────────────────────────────────────────────────
+    @property
+    def is_recording(self) -> bool:
+        return self.recorder is not None
+
+    def start_recording(self, path: str, width: int, height: int) -> None:
+        """Open a VideoRecorder that captures at the current FPS."""
+        self.stop_recording()
+        try:
+            self.recorder = VideoRecorder(path, float(self.settings.fps), width, height)
+            self.recording_path = path
+        except Exception as e:  # noqa: BLE001
+            self.recording_path = None
+            raise RuntimeError(f"Could not start recording: {e}") from e
+
+    def stop_recording(self) -> str | None:
+        """Finalise the current recording and return its path (or None)."""
+        if self.recorder is not None:
+            self.recorder.close()
+            self.recorder = None
+            path = self.recording_path
+            self.recording_path = None
+            return path
+        return None
+
+    @property
+    def recording_elapsed(self) -> float:
+        return self.recorder.elapsed if self.recorder else 0.0
+
     # ── config mutations ───────────────────────────────────────────────────────
     def set_palette(self, name: str) -> None:
         self.settings.graphics_palette = name
@@ -195,6 +227,7 @@ class Controller(QObject):
         self.tick.emit()
 
     def stop_all(self) -> None:
+        self.stop_recording()
         self.stop()
         self._release_depth()
         self._release_video()

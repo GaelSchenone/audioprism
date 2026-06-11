@@ -24,7 +24,7 @@ class VideoSource:
         self._cap: cv2.VideoCapture | None = None
         self._frame: np.ndarray | None = None
         self._lock = threading.Lock()
-        self._running = False
+        self._running = threading.Event()
         self._thread: threading.Thread | None = None
 
     def start(self) -> bool:
@@ -33,14 +33,14 @@ class VideoSource:
             self.error = f"cannot open video source {self.spec!r}"
             self._cap = None
             return False
-        self._running = True
+        self._running.set()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
         return True
 
     def _loop(self) -> None:
         frame_interval = 1.0 / self.target_fps
-        while self._running:
+        while self._running.is_set():
             ok, frame = self._cap.read()
             if not ok:
                 if self.is_file:                       # loop the file
@@ -60,7 +60,7 @@ class VideoSource:
             return self._frame
 
     def stop(self) -> None:
-        self._running = False
+        self._running.clear()
         if self._thread:
             self._thread.join(timeout=0.5)
             self._thread = None
@@ -82,13 +82,29 @@ def list_cameras(max_devices: int = 6) -> list[int]:
     import sys
 
     if sys.platform.startswith("linux"):
-        idxs = []
-        for node in glob.glob("/dev/video*"):
+        seen_names: set[str] = set()
+        idxs: list[int] = []
+        for node in sorted(glob.glob("/dev/video*")):
             m = re.search(r"(\d+)$", node)
-            if m:
-                idxs.append(int(m.group(1)))
-        if idxs:
-            return sorted(set(idxs))
+            if not m:
+                continue
+            idx = int(m.group(1))
+            # Read the device name from sysfs to deduplicate metadata nodes
+            name_path = f"/sys/class/video4linux/video{idx}/name"
+            try:
+                with open(name_path) as fh:
+                    name = fh.read().strip()
+            except OSError:
+                continue
+            if name in seen_names:
+                continue           # skip metadata / duplicate endpoint
+            seen_names.add(name)
+            cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+            ok = cap.isOpened()
+            cap.release()
+            if ok:
+                idxs.append(idx)
+        return sorted(idxs)
 
     available = []
     for i in range(max_devices):

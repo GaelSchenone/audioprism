@@ -12,6 +12,7 @@ import os
 import tempfile
 import traceback
 
+import numpy as np
 import moderngl
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
@@ -54,6 +55,7 @@ class GLViewport(QOpenGLWidget):
         self.engine: VisualizerEngine | None = None
         self._seen_palette = -1
         self._failed = False
+        self._retry_gl = False
         self._last_mouse: tuple[int, int] | None = None
 
     def _device_size(self) -> tuple[int, int]:
@@ -82,12 +84,23 @@ class GLViewport(QOpenGLWidget):
             self.engine.resize(max(2, w), max(2, h))
 
     def paintGL(self) -> None:
-        if self.engine is None or self._failed:
+        if self.engine is None:
             return
+        if self._failed:
+            if not self._retry_gl:
+                return
+            self._retry_gl = False
+            self._failed = False
+            self.makeCurrent()
+            self.initializeGL()
+            if self._failed:
+                self._retry_gl = True          # give it one more try next frame
+                return
         try:
             self._paint()
         except Exception as e:  # noqa: BLE001 — log once, keep the window alive
             self._failed = True
+            self._retry_gl = True
             _log_gl_error("paintGL", e)
 
     def _paint(self) -> None:
@@ -105,6 +118,12 @@ class GLViewport(QOpenGLWidget):
             self.controller.latest_frame,
             self.controller.latest_depth,
         )
+
+        # Capture frame for recording (before blitting so output_fbo is still bound)
+        if self.controller.is_recording:
+            frame = self.engine.capture_output()
+            if frame is not None:
+                self.controller.recorder.write_frame(frame)
 
         # Blit the result to the widget's framebuffer
         screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
@@ -135,11 +154,26 @@ class GLViewport(QOpenGLWidget):
         self.controller.camera.zoom(event.angleDelta().y())
         self.update()
 
+    # ── screenshot ───────────────────────────────────────────────────────────────
+    def capture_screenshot(self) -> np.ndarray | None:
+        """Return the current rendered frame as (H, W, 4) uint8 RGBA, or None."""
+        if self.engine is None or self._failed:
+            return None
+        self.makeCurrent()
+        frame = self.engine.capture_output()
+        self.doneCurrent()
+        return frame
+
     def release(self) -> None:
-        if self.engine:
+        if self.engine is not None:
             self.makeCurrent()
             self.engine.release()
-            self.blit_vao.release()
-            self.blit_prog.release()
+            if self.blit_vao is not None:
+                self.blit_vao.release()
+                self.blit_vao = None
+            if self.blit_prog is not None:
+                self.blit_prog.release()
+                self.blit_prog = None
             self.doneCurrent()
             self.engine = None
+        self.ctx = None

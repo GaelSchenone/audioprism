@@ -10,6 +10,7 @@ class Sidebar(QWidget):
     options_clicked = Signal()
     output_clicked = Signal()
     reset_clicked = Signal()
+    recording_clicked = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -33,7 +34,17 @@ class Sidebar(QWidget):
         self.output_btn.setToolTip("Open output window (drag to a monitor, then fullscreen)")
         self.output_btn.clicked.connect(self.output_clicked.emit)
 
+        self.record_btn = QPushButton("⏺")
+        self.record_btn.setFixedSize(38, 38)
+        self.record_btn.setToolTip("Record video (Ctrl+R)")
+        self.record_btn.clicked.connect(self.recording_clicked.emit)
+
         layout.addWidget(self.options_btn)
         layout.addWidget(self.reset_btn)
         layout.addWidget(self.output_btn)
+        layout.addWidget(self.record_btn)
         layout.addStretch(1)
+
+    def set_recording(self, active: bool) -> None:
+        self.record_btn.setText("⏹" if active else "⏺")
+        self.record_btn.setToolTip("Stop recording" if active else "Record video (Ctrl+R)")

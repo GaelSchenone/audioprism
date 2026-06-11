@@ -25,14 +25,29 @@ _FRAG = """
 in vec2 v_uv; out vec4 frag;
 uniform sampler2D depth;     // single channel, 0=far 1=near
 uniform sampler2D palette;
+uniform vec3 bg;
 uniform float volume;
+uniform float time;
+uniform float waiting;       // 1.0 = no depth data yet
+
 void main() {
-    vec2 uv = vec2(1.0 - v_uv.x, 1.0 - v_uv.y);   // upright + selfie mirror
+    vec2 uv = vec2(1.0 - v_uv.x, 1.0 - v_uv.y);
+    if (waiting > 0.5) {
+        // Pulsing "loading" indicator
+        float pulse = 0.5 + 0.5 * sin(time * 2.0);
+        float r = length(v_uv - 0.5) * 1.8;
+        float glow = exp(-r * 3.0) * pulse * 0.3;
+        frag = vec4(bg + glow, 1.0);
+        return;
+    }
     float d = texture(depth, uv).r;
     vec3 col = texture(palette, vec2(d, 0.5)).rgb;
     frag = vec4(col * (0.75 + 0.25 * volume), 1.0);
 }
 """
+
+
+_DT = 1.0 / 60.0
 
 
 class Depth(Preset):
@@ -46,6 +61,7 @@ class Depth(Preset):
         self._depth: np.ndarray | None = None
         self._tex: moderngl.Texture | None = None
         self._shape: tuple[int, int] | None = None
+        self._time = 0.0
 
     def set_depth(self, depth: np.ndarray | None) -> None:
         self._depth = depth
@@ -57,10 +73,22 @@ class Depth(Preset):
         palette_lut: moderngl.Texture,
         background: tuple[float, float, float],
     ) -> None:
-        if self._depth is None:
+        self._time += _DT
+        waiting = self._depth is None
+
+        palette_lut.use(0)
+        self.prog["palette"] = 0
+        self.prog["bg"] = tuple(background)
+        self.prog["volume"] = float(audio.volume)
+        self.prog["time"] = float(self._time)
+        self.prog["waiting"] = 1.0 if waiting else 0.0
+
+        if waiting:
+            self.vao.render(moderngl.TRIANGLES)
             return
+
         h, w = self._depth.shape[:2]
-        if self._shape != (h, w):
+        if self._shape != (h, w) or self._tex is None:
             if self._tex is not None:
                 self._tex.release()
             self._tex = self.ctx.texture((w, h), 1, dtype="f4")
@@ -69,11 +97,8 @@ class Depth(Preset):
             self._shape = (h, w)
         self._tex.write(np.ascontiguousarray(self._depth, dtype="f4").tobytes())
 
-        palette_lut.use(0)
         self._tex.use(1)
-        self.prog["palette"] = 0
         self.prog["depth"] = 1
-        self.prog["volume"] = float(audio.volume)
         self.vao.render(moderngl.TRIANGLES)
 
     def release(self) -> None:

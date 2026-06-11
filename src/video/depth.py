@@ -76,39 +76,69 @@ class DepthEstimator:
 
 
 class DepthWorker:
-    """Runs depth inference on the latest frame in a background thread."""
+    """Runs depth inference on the latest frame in a background thread.
+
+    The ONNX model is loaded lazily in the worker thread so that downloading
+    (first run) does not block the UI.
+    """
 
     def __init__(self, frame_getter, model: str = DEFAULT_MODEL) -> None:
         self.frame_getter = frame_getter
-        self.estimator = DepthEstimator(model)
+        self.model_name = model
         self.latest_depth: np.ndarray | None = None
         self.fps = 0.0
         self.error: str | None = None
+        self._estimator: DepthEstimator | None = None
         self._lock = threading.Lock()
-        self._running = False
+        self._running = threading.Event()
         self._thread: threading.Thread | None = None
 
     @property
     def model(self) -> str:
-        return self.estimator.model
+        return self.model_name
 
     def start(self) -> None:
-        self._running = True
+        self._running.set()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
+    def _ensure_estimator(self) -> bool:
+        """Load the model on first call (runs in worker thread)."""
+        if self._estimator is not None:
+            return True
+        try:
+            self._estimator = DepthEstimator(self.model_name)
+            return True
+        except Exception as e:  # noqa: BLE001
+            self.error = f"depth model load failed: {e}"
+            return False
+
     def _loop(self) -> None:
-        while self._running:
+        max_retries = 10
+        retries = 0
+        while self._running.is_set():
+            if not self._ensure_estimator():
+                time.sleep(2.0)           # retry model load every 2s
+                continue
+
             frame = self.frame_getter()
             if frame is None:
                 time.sleep(0.03)
+                retries += 1
+                if retries >= max_retries:
+                    self.error = "depth: no frames from camera"
                 continue
             try:
                 t = time.time()
-                depth = self.estimator.infer(frame)
+                depth = self._estimator.infer(frame)
                 dt = time.time() - t
+                retries = 0
             except Exception as e:  # noqa: BLE001
                 self.error = str(e)
+                retries += 1
+                if retries >= max_retries:
+                    self.error = f"depth: too many errors — {e}"
+                    break
                 time.sleep(0.1)
                 continue
             with self._lock:
@@ -120,16 +150,23 @@ class DepthWorker:
             return self.latest_depth, self.fps
 
     def set_model(self, model: str) -> None:
-        if model == self.estimator.model:
+        if model == self.model_name:
             return
-        self.stop()
-        self.estimator = DepthEstimator(model)
+        was_running = self._running.is_set()
+        if was_running:
+            self._running.clear()
+            if self._thread:
+                self._thread.join(timeout=1.0)
+        self.model_name = model
+        self._estimator = None
+        self.error = None
         with self._lock:
             self.latest_depth = None
-        self.start()
+        if was_running:
+            self.start()
 
     def stop(self) -> None:
-        self._running = False
+        self._running.clear()
         if self._thread:
             self._thread.join(timeout=1.0)
             self._thread = None

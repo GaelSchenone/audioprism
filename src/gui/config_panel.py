@@ -160,6 +160,7 @@ class ConfigPanel(QWidget):
         idx = self.cam.currentData()
         if idx is not None and idx >= 0:
             self.controller.set_video_source(idx)
+            self.video_label.setText(self._video_text())
 
     def _video_text(self) -> str:
         src = self.controller.settings.video_source

@@ -144,6 +144,17 @@ class VisualizerEngine:
         self.post.run(self.scene_texture, self.output_fbo,
                       float(self.settings.bloom) * 1.6, bg_lum)
 
+    def capture_output(self) -> np.ndarray | None:
+        """Return the current output texture as (H, W, 4) uint8 RGBA, or None."""
+        try:
+            self.output_fbo.use()
+            data = self.ctx.read_pixels(
+                0, 0, self.width, self.height, components=4, dtype="f1"
+            )
+            return np.frombuffer(data, dtype=np.uint8).reshape(self.height, self.width, 4)
+        except Exception:
+            return None
+
     def release(self) -> None:
         for preset in self.presets.values():
             preset.release()
@@ -151,4 +162,12 @@ class VisualizerEngine:
         self.palette_lut.release()
         for obj in (self.scene_fbo, self.scene_texture, self.scene_depth,
                     self.output_fbo, self.output_texture):
-            obj.release()
+            if obj is not None:
+                obj.release()
+        # Null everything so a double-release is safe
+        self.scene_fbo = None
+        self.scene_texture = None
+        self.scene_depth = None
+        self.output_fbo = None
+        self.output_texture = None
+        self.palette_lut = None
