@@ -31,6 +31,15 @@ class VisualizerSettings:
     # Video source for camera-based presets: int (camera index) or str (file path)
     video_source: int | str = 0
     depth_model: str = "midas"             # 'midas' (fast) or 'depth_anything'
+    # New preset params (with defaults so saved settings stay compatible)
+    plasma_speed: float = 1.0
+    ring_density: int = 12
+    kaleidoscope_segments: int = 6
+    kaleidoscope_rotation: float = 0.3
+    spectrum_mirror: bool = False
+    particle_turbulence: float = 0.3
+    radial_dual: bool = False
+    matrix_charset: str = "procedural"
 
     def to_dict(self) -> dict:
         return asdict(self)

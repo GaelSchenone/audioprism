@@ -46,6 +46,9 @@ class Controller(QObject):
         self.paused = False
         self.recorder: VideoRecorder | None = None
         self.recording_path: str | None = None
+        self.show_info_overlay = False
+        self.muted = False
+        self._bloom_before: float = settings.bloom   # saved value for B toggle
         self._viewports: list = []
 
         self.capture: AudioCapture | None = None
@@ -211,6 +214,20 @@ class Controller(QObject):
             self.timer.stop()
         else:
             self.timer.start(max(1, int(1000 / self.settings.fps)))
+
+    def toggle_bloom(self) -> None:
+        s = self.settings
+        if s.bloom > 0.01:
+            self._bloom_before = s.bloom
+            s.bloom = 0.0
+        else:
+            s.bloom = self._bloom_before
+
+    def toggle_info(self) -> None:
+        self.show_info_overlay = not self.show_info_overlay
+
+    def toggle_mute(self) -> None:
+        self.muted = not self.muted
 
     def _on_tick(self) -> None:
         if self.capture and self.analyzer:

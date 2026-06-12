@@ -18,12 +18,17 @@ from src.presets.ascii_bars import AsciiBars
 from src.presets.ascii_cam import AsciiCam
 from src.presets.base import Preset
 from src.presets.depth_view import Depth
+from src.presets.kaleidoscope import Kaleidoscope
 from src.presets.matrix import Matrix
 from src.presets.particles import Particles
+from src.presets.plasma import Plasma
 from src.presets.point_cloud_audio import PointCloudAudio
 from src.presets.point_cloud_cam import PointCloudCam
 from src.presets.radial import Radial
+from src.presets.spectrogram import Spectrogram
 from src.presets.spectrum import Spectrum
+from src.presets.spectrum_3d import Spectrum3D
+from src.presets.tunnel import Tunnel
 from src.presets.waveform import Waveform
 
 _LUT_SIZE = 256
@@ -45,7 +50,8 @@ def _silent_audio() -> AudioData:
 
 
 PRESET_CLASSES: tuple[type[Preset], ...] = (
-    Spectrum, Waveform, Particles, Radial, Matrix, AsciiBars, AsciiCam, Depth,
+    Spectrum, Waveform, Particles, Radial, Matrix, Spectrogram, Plasma, Tunnel,
+    Kaleidoscope, Spectrum3D, AsciiBars, AsciiCam, Depth,
     PointCloudAudio, PointCloudCam,
 )
 PRESET_NAMES: list[str] = [c.name for c in PRESET_CLASSES]

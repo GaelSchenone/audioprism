@@ -14,6 +14,8 @@ import traceback
 
 import numpy as np
 import moderngl
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter, QColor, QFont
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from src.engine import VisualizerEngine
@@ -113,8 +115,10 @@ class GLViewport(QOpenGLWidget):
         self.engine.camera = self.controller.camera
 
         # Render the visualization into the engine's offscreen FBO
+        # Pass None as audio when muted → engine falls back to silent audio
+        audio = None if self.controller.muted else self.controller.latest_audio
         self.engine.render(
-            self.controller.latest_audio,
+            audio,
             self.controller.latest_frame,
             self.controller.latest_depth,
         )
@@ -133,6 +137,71 @@ class GLViewport(QOpenGLWidget):
         self.engine.output_texture.use(0)
         self.blit_prog["tex"] = 0
         self.blit_vao.render(moderngl.TRIANGLES)
+
+        # Info overlay (painted after GL, works because QOpenGLWidget supports QPainter)
+        if self.controller.show_info_overlay:
+            self._paint_overlay()
+
+    # ── info overlay ──────────────────────────────────────────────────────────────
+    def _paint_overlay(self) -> None:
+        """Paint a HUD overlay with BPM, volume, bands, preset, FPS using QPainter."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        c = self.controller
+        a = c.latest_audio
+        font = QFont("monospace", 11)
+        painter.setFont(font)
+
+        _, _, vw, vh = self.ctx.viewport
+        pad = 12
+        ly = pad + 16  # line y
+
+        def line(text: str, color: str = "#ffffff") -> None:
+            nonlocal ly
+            painter.setPen(QColor(color))
+            painter.drawText(pad, ly, text)
+            ly += 18
+
+        def bar(label: str, val: float, color: str = "#79d3de") -> None:
+            nonlocal ly
+            bw = min(120, int(val * 120))
+            painter.setPen(QColor("#ffffff88"))
+            painter.drawText(pad, ly, f"{label}: ")
+            painter.setPen(QColor(color))
+            painter.drawText(pad + 60, ly, f"{val:.2f}")
+            if vw > 200 and bw > 0:
+                painter.fillRect(pad + 120, ly - 10, bw, 8, QColor(color))
+            ly += 18
+
+        # ── left column ──
+        ly = pad + 16
+        line(f"🎵 {c.settings.preset}")
+        line(f"FPS: {c.settings.fps}")
+        if a is not None:
+            bpm = f"{a.bpm:.0f}" if a.bpm else "--"
+            line(f"BPM: {bpm}")
+            bar("Vol", a.volume)
+            bar("Bass", a.bands.get("bass", 0))
+            bar("Mid",  a.bands.get("mid", 0))
+            bar("High", a.bands.get("high", 0))
+            bar("Cent", a.spectral_centroid, "#ffcc44")
+            bar("Onst", a.onset_strength, "#ff6688")
+            line(f"Beat: {'●' if a.beat else '○'}")
+
+        # ── right column: recorded length ──
+        if c.is_recording and vw > 360:
+            painter.setPen(QColor("#ff4444"))
+            elapsed = c.recording_elapsed
+            mins, secs = divmod(int(elapsed), 60)
+            txt = f"⏺ REC {mins:02d}:{secs:02d}"
+            painter.drawText(vw - pad - 100, pad + 16, txt)
+
+        # ── bottom-left mute indicator ──
+        if c.muted:
+            painter.setPen(QColor("#ff8844"))
+            painter.drawText(pad, vh - pad, "🔇 MUTED")
+
+        painter.end()
 
     # ── 3D camera input (orbit / zoom) ──────────────────────────────────────────
     def mousePressEvent(self, event) -> None:

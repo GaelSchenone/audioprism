@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QStatusBar,
     QWidget,
 )
@@ -89,10 +90,40 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("R"), self).activated.connect(self.reset_view)
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self.toggle_recording)
         QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.take_screenshot)
+        QShortcut(QKeySequence("B"), self).activated.connect(self.controller.toggle_bloom)
+        QShortcut(QKeySequence("I"), self).activated.connect(self._toggle_info)
+        QShortcut(QKeySequence("M"), self).activated.connect(self.controller.toggle_mute)
+        QShortcut(QKeySequence("?"), self).activated.connect(self._show_help)
 
     def reset_view(self) -> None:
         self.controller.camera.reset()
         self.controller.refresh()
+
+    # ── info & help ──
+    def _toggle_info(self) -> None:
+        self.controller.toggle_info()
+        self.preview.update()
+        self.statusBar().showMessage(
+            "Info overlay ON" if self.controller.show_info_overlay else "Info overlay OFF"
+        )
+
+    def _show_help(self) -> None:
+        QMessageBox.information(
+            self, "audioprism — Shortcuts",
+            "<b>Keyboard shortcuts</b><br><br>"
+            "0-9 &nbsp; Select preset<br>"
+            "Tab / Shift+Tab &nbsp; Cycle preset<br>"
+            "Space &nbsp; Pause / resume<br>"
+            "F &nbsp; Open output window<br>"
+            "R &nbsp; Reset 3D view<br>"
+            "B &nbsp; Toggle bloom<br>"
+            "I &nbsp; Toggle info overlay<br>"
+            "M &nbsp; Mute / unmute<br>"
+            "Ctrl+R &nbsp; Start / stop recording<br>"
+            "Ctrl+S &nbsp; Screenshot<br>"
+            "? &nbsp; This help<br>"
+            "Esc &nbsp; Close fullscreen / window",
+        )
 
     # ── recording ──
     def toggle_recording(self) -> None:

@@ -28,8 +28,9 @@ uniform sampler2D bars;      // width=NBARS, height=1, R = bar magnitude 0..1
 uniform sampler2D palette;   // 256x1 gradient LUT
 uniform vec3 bg;
 uniform float glow;
+uniform float mirror;        // 0 = normal, 1 = mirrored from center
 void main() {
-    float x = v_uv.x;
+    float x = mirror > 0.5 ? abs(v_uv.x * 2.0 - 1.0) : v_uv.x;
     float y = v_uv.y;
     float mag = texture(bars, vec2(x, 0.5)).r;
     vec3 barcol = texture(palette, vec2(x, 0.5)).rgb;
@@ -85,6 +86,7 @@ class Spectrum(Preset):
         self.prog["bars"] = 1
         self.prog["bg"] = tuple(background)
         self.prog["glow"] = 0.25      # soft bar tops; global bloom adds the halo
+        self.prog["mirror"] = 1.0 if settings.spectrum_mirror else 0.0
         self.vao.render(moderngl.TRIANGLES)
 
     def release(self) -> None:

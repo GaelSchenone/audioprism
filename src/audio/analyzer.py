@@ -23,6 +23,9 @@ BAND_RANGES: dict[str, tuple[int, int]] = {
 }
 
 
+_PREV_SPECTRUM_FIELD = "prev_spectrum"  # sentinel for init
+
+
 @dataclass
 class AudioData:
     waveform: np.ndarray        # raw samples, length FFT_SIZE
@@ -32,6 +35,8 @@ class AudioData:
     volume: float               # RMS volume (0–1)
     beat: bool                  # True on the frame a beat is detected
     bpm: float                  # estimated BPM (0.0 until enough beats sampled)
+    spectral_centroid: float = 0.0   # 0–1 "brightness" of the audio
+    onset_strength: float = 0.0      # 0–1 rate of spectral change
 
 
 class AudioAnalyzer:
@@ -45,6 +50,8 @@ class AudioAnalyzer:
         self._bpm: float = 0.0
         self.frequencies = np.fft.rfftfreq(FFT_SIZE, 1.0 / sample_rate).astype(np.float32)
         self._window = np.hanning(FFT_SIZE).astype(np.float32)
+        self._prev_spectrum = np.zeros(FFT_SIZE // 2 + 1, dtype=np.float32)
+        self._onset_smooth: float = 0.0
 
     def analyze(self, samples: np.ndarray) -> AudioData:
         # Pad / trim to FFT_SIZE
@@ -96,6 +103,17 @@ class AudioAnalyzer:
                 if mean_ibi > 0:
                     self._bpm = 60.0 / mean_ibi
 
+        # Spectral centroid: weighted mean of frequencies
+        sp = self._smoothed
+        spectral_centroid = float(
+                np.clip(np.sum(sp * self.frequencies) / (np.sum(sp) + 1e-9) / 10000.0, 0.0, 1.0)
+        )
+
+        # Onset strength: positive spectral change, smoothed
+        onset_raw = float(np.mean(np.maximum(0.0, spectrum - self._prev_spectrum)))
+        self._onset_smooth = 0.7 * self._onset_smooth + 0.3 * onset_raw
+        self._prev_spectrum = spectrum.copy()
+
         return AudioData(
             waveform=frame,
             spectrum=spectrum,
@@ -104,4 +122,6 @@ class AudioAnalyzer:
             volume=volume,
             beat=beat,
             bpm=self._bpm,
+            spectral_centroid=spectral_centroid,
+            onset_strength=float(np.clip(self._onset_smooth * 5.0, 0.0, 1.0)),
         )

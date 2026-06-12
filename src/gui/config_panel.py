@@ -29,6 +29,11 @@ _PARAM_SPECS = [
     ("matrix_density", "Matrix density", 16, 160, True),
     ("ascii_grid", "ASCII grid", 16, 220, True),
     ("point_size", "Point size", 0.3, 4.0, False),
+    ("plasma_speed", "Plasma speed", 0.1, 4.0, False),
+    ("ring_density", "Ring density", 4, 40, True),
+    ("kaleidoscope_segments", "K-scope segments", 2, 16, True),
+    ("kaleidoscope_rotation", "K-scope rotation", 0.0, 2.0, False),
+    ("particle_turbulence", "Particle turbulence", 0.0, 2.0, False),
 ]
 
 
